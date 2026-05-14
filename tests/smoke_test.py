@@ -358,6 +358,30 @@ def _c04(tc, ctx):
     return _result(tc, err == "", ms, len(rows),
                    f"App→capability joins = {len(rows)} (query executed)", err, q)
 
+def _c05(tc, ctx):
+    """Application pairs sharing the same L3 capability (rationalisation overlap) are enumerable."""
+    q = """
+    SELECT DISTINCT ?capLabel ?app1Label ?app2Label
+    WHERE {
+      ?app1 a app:Application ;
+            rdfs:label ?app1Label ;
+            ea:enablesBusinessCapabilityL3 ?cap .
+      ?app2 a app:Application ;
+            rdfs:label ?app2Label ;
+            ea:enablesBusinessCapabilityL3 ?cap .
+      ?cap a ea:BusinessCapabilityL3 ;
+           rdfs:label ?capLabel .
+      FILTER(STR(?app1) < STR(?app2))
+    }
+    ORDER BY ?capLabel ?app1Label ?app2Label
+    LIMIT 50
+    """
+    t0 = time.monotonic()
+    rows, err = sparql_rows(ctx, q)
+    ms = int((time.monotonic() - t0) * 1000)
+    return _result(tc, err == "", ms, len(rows),
+                   f"Shared-capability app pairs = {len(rows)} (query executed)", err, q)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CQ-H  PEOPLE / HR GRAPH (direct Stardog)
@@ -663,6 +687,7 @@ ALL_TESTS: list[TestCase] = [
     TestCase("CQ-C02", "CAPABILITY","Capability gaps (no app) detectable",             _c02, ["sparql"]),
     TestCase("CQ-C03", "CAPABILITY","Rationalisation candidates (2+ apps) detectable", _c03, ["sparql"]),
     TestCase("CQ-C04", "CAPABILITY","App→capability linkage traversal works",          _c04, ["sparql"]),
+    TestCase("CQ-C05", "CAPABILITY","Shared-capability app pairs enumerable (no duplicates)", _c05, ["sparql"]),
     # PEOPLE
     TestCase("CQ-H01", "PEOPLE",    "Users linked to departments",                     _h01, ["sparql"]),
     TestCase("CQ-H02", "PEOPLE",    "Departmental headcount queryable",                _h02, ["sparql"]),

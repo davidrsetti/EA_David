@@ -320,6 +320,22 @@ SELECT ?cap ?capLabel ?domain ?strategicIntent WHERE {{
 }} LIMIT 100
 '''
 
+SA_SHARED_CAPABILITY_QUERY = '''
+SELECT DISTINCT ?capLabel ?app1Label ?app2Label
+WHERE {{
+  ?app1 a app:Application ;
+        rdfs:label ?app1Label ;
+        ea:enablesBusinessCapabilityL3 ?cap .
+  ?app2 a app:Application ;
+        rdfs:label ?app2Label ;
+        ea:enablesBusinessCapabilityL3 ?cap .
+  ?cap a ea:BusinessCapabilityL3 ;
+       rdfs:label ?capLabel .
+  FILTER(STR(?app1) < STR(?app2))
+}}
+ORDER BY ?capLabel ?app1Label ?app2Label
+'''
+
 SA_DATARISK_QUERY = '''
 SELECT DISTINCT ?app ?appLabel ?classLevel ?findingLabel ?severity WHERE {{
     ?app a app:Application .
