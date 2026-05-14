@@ -117,13 +117,21 @@ class DenodoSettings:
 
 
 @dataclass(frozen=True)
+class DatabricksSettings:
+    host:      str = field(default_factory=lambda: os.getenv("DATABRICKS_HOST",      "adb-4213617139033191.11.azuredatabricks.net"))
+    http_path: str = field(default_factory=lambda: os.getenv("DATABRICKS_HTTP_PATH", "/sql/1.0/warehouses/aeb3dfb63c5b8d7f"))
+    token:     str = field(default_factory=lambda: os.getenv("DATABRICKS_TOKEN",     ""))
+
+
+@dataclass(frozen=True)
 class Settings:
-    stardog:    StardogSettings  = field(default_factory=StardogSettings)
-    openai:     OpenAISettings   = field(default_factory=OpenAISettings)
-    security:   SecuritySettings = field(default_factory=SecuritySettings)
-    audit:      AuditSettings    = field(default_factory=AuditSettings)
-    denodo:     DenodoSettings   = field(default_factory=DenodoSettings)
-    environment: str             = field(default_factory=lambda: os.getenv("NEXUS_ENV", "development"))
+    stardog:    StardogSettings    = field(default_factory=StardogSettings)
+    openai:     OpenAISettings     = field(default_factory=OpenAISettings)
+    security:   SecuritySettings   = field(default_factory=SecuritySettings)
+    audit:      AuditSettings      = field(default_factory=AuditSettings)
+    denodo:     DenodoSettings     = field(default_factory=DenodoSettings)
+    databricks: DatabricksSettings = field(default_factory=DatabricksSettings)
+    environment: str               = field(default_factory=lambda: os.getenv("NEXUS_ENV", "development"))
 
     @property
     def is_production(self) -> bool:

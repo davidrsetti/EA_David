@@ -181,6 +181,20 @@ RULES:
         ?app rdfs:label ?appLabel .
       }} ORDER BY DESC(?capCount) LIMIT 100
     — the outer query fetches ?appLabel directly; the subquery only returns ?app and ?capCount.
+
+    CORRECT pattern for "applications sharing the same business capability":
+      Use a different variable name (?a) inside the subquery to avoid scoping conflicts.
+      Always use OPTIONAL for labels so apps/caps without rdfs:label are not silently dropped.
+      SELECT DISTINCT ?cap ?capLabel ?app ?appLabel WHERE {{
+        {{ SELECT ?cap WHERE {{
+             ?a a app:Application ; ea:enablesBusinessCapabilityL3 ?cap .
+           }} GROUP BY ?cap HAVING (COUNT(DISTINCT ?a) > 1) }}
+        ?app a app:Application ;
+             ea:enablesBusinessCapabilityL3 ?cap .
+        OPTIONAL {{ ?app rdfs:label ?appLabel }}
+        OPTIONAL {{ ?cap rdfs:label ?capLabel }}
+      }} ORDER BY ?cap ?app
+    — ?a is scoped to the subquery; ?app is the outer variable. Never reuse the same name for both.
 """
 
     logger.debug("nl_to_sparql: question=%r model=%s", question, settings.openai.sparql_model)

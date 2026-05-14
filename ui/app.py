@@ -304,7 +304,7 @@ st.markdown(
 )
 
 # ── Main tabs ─────────────────────────────────────────────────────────
-tab_chat, tab_guided_sa, tab_sa = st.tabs(["💬  Knowledge Graph Chat", "🧭  Guided SA Advisor", "🏛  Freeform SA Diagram"])
+tab_chat, tab_guided_sa, tab_sa, tab_data = st.tabs(["💬  Knowledge Graph Chat", "🧭  Guided SA Advisor", "🏛  Freeform SA Diagram", "📊  Data Query"])
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1045,3 +1045,19 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
             '</div>',
             unsafe_allow_html=True
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# TAB 4 — DATA QUERY (Text2SQL over Unity Catalog metadata)
+# ═══════════════════════════════════════════════════════════════════════
+with tab_data:
+    try:
+        from nexus.core.databricks_client import get_databricks
+        from nexus.core.stardog_client import get_stardog as _get_stardog
+        from nexus.ui.data_query_tab import render_data_query_tab
+        _connected = st.session_state.get("connected", False)
+        _stardog   = _get_stardog() if _connected else None
+        _dbx       = get_databricks() if _connected else None
+        render_data_query_tab(stardog=_stardog, databricks=_dbx)
+    except Exception as _exc:
+        st.error(f"Data Query tab failed to load: {_exc}")
