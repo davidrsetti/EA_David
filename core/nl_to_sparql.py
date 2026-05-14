@@ -117,20 +117,45 @@ AVAILABLE PREFIX DECLARATIONS:
 {vg_hint}{clarification_block}{role_hint}{extra_filter_hint}
 
 DOMAIN KNOWLEDGE — key concept mappings (use these instead of inventing patterns):
-- "EA Standards" / "technology standards" / "approved technologies" = instances of ea:Technology.
-  ea:Technology links to its capability category via ea:enablesTechnologyCapabilityL3 → ea:TechnologyCapabilityL3.
-  Example: "EA Standards for Database" →
-    SELECT ?techLabel ?capLabel WHERE {{
-      ?tech a ea:Technology ; rdfs:label ?techLabel ;
-            ea:enablesTechnologyCapabilityL3 ?cap .
-      ?cap rdfs:label ?capLabel .
-      FILTER(CONTAINS(LCASE(?capLabel), "database"))
-    }} ORDER BY ?techLabel LIMIT 100
-- "Applications" = ea:Application; link to capabilities via ea:enablesBusinessCapabilityL3.
+
+CRITICAL — HOW TO NAVIGATE TECHNOLOGY QUESTIONS:
+When the user asks "what technologies / platforms / tools are used for X", the answer lives in the
+capability graph. NEVER filter on technology labels (?techLabel). ALWAYS filter on capability labels.
+The path is: ea:Technology --ea:enablesTechnologyCapabilityL3--> ea:TechnologyCapabilityL3
+Capability hierarchy: L1 --ea:hasChildTechnologyCapability--> L2 --ea:hasChildTechnologyCapability--> L3
+
+Pattern for ANY "technologies for <domain>" question:
+  SELECT DISTINCT ?techLabel ?capLabel WHERE {{
+    ?tech a ea:Technology ; rdfs:label ?techLabel ;
+          ea:enablesTechnologyCapabilityL3 ?cap .
+    ?cap rdfs:label ?capLabel .
+    FILTER(CONTAINS(LCASE(?capLabel), "<key term from question>"))
+  }} ORDER BY ?capLabel ?techLabel LIMIT 100
+
+When the question spans multiple capability levels (e.g. "Data Platforms"), widen the search
+across L1/L2/L3 labels using OPTIONAL traversal up the hierarchy:
+  SELECT DISTINCT ?techLabel ?l3Label ?l2Label WHERE {{
+    ?tech a ea:Technology ; rdfs:label ?techLabel ;
+          ea:enablesTechnologyCapabilityL3 ?l3 .
+    ?l3 rdfs:label ?l3Label .
+    OPTIONAL {{ ?l2 ea:hasChildTechnologyCapability ?l3 ; rdfs:label ?l2Label }}
+    FILTER(
+      CONTAINS(LCASE(?l3Label), "<term>") ||
+      CONTAINS(LCASE(COALESCE(?l2Label, "")), "<term>")
+    )
+  }} ORDER BY ?l3Label ?techLabel LIMIT 100
+
+Examples:
+- "EA Standards for Database" → FILTER on capLabel containing "database"
+- "Data Platforms" → FILTER on l3Label or l2Label containing "platform" AND ("data" in l2Label or l1Label)
+- "Streaming tools" → FILTER on capLabel containing "stream"
+
+- "Applications" = app:Application; link to capabilities via ea:enablesBusinessCapabilityL3.
 - "People" / "employees" = hr:User; linked to departments via hr:belongsToDepartment.
 - "Business capabilities" = ea:BusinessCapabilityL3 (L1/L2 for higher levels).
 - "CSO / security capabilities" = ea:CSOCapabilityL3 (L1/L2 for higher levels).
 - NEVER search on rdfs:label alone to find typed entities — always assert the rdf:type first.
+- NEVER filter on ?techLabel to infer what a technology does — use capability labels instead.
 
 RULES:
 1. Use rdfs:label for human-readable names and text filtering unless the ontology explicitly requires another predicate.
