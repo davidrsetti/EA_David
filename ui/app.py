@@ -308,7 +308,7 @@ st.markdown(
 )
 
 # ── Main tabs ─────────────────────────────────────────────────────────
-tab_chat, tab_guided_sa, tab_sa, tab_data, tab_portfolio, tab_sa_health, tab_diagram, tab_impact, tab_audit = st.tabs([
+tab_chat, tab_guided_sa, tab_sa, tab_data, tab_portfolio, tab_sa_health, tab_diagram, tab_impact, tab_ai_gov, tab_audit = st.tabs([
     "💬  Knowledge Graph Chat",
     "🧭  Guided SA Advisor",
     "🏛  Freeform SA Diagram",
@@ -317,6 +317,7 @@ tab_chat, tab_guided_sa, tab_sa, tab_data, tab_portfolio, tab_sa_health, tab_dia
     "🏥  SA Health",
     "🗺️  Architecture Diagrams",
     "💥  Change Impact",
+    "🤖  AI Governance",
     "🔍  Audit",
 ])
 
@@ -1134,7 +1135,21 @@ with tab_impact:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# TAB 9 — AUDIT & OBSERVABILITY
+# TAB 9 — AI AGENT GOVERNANCE CONSOLE
+# ═══════════════════════════════════════════════════════════════════════
+with tab_ai_gov:
+    try:
+        from nexus.ui.ai_governance_tab import render_ai_governance_tab
+        render_ai_governance_tab(
+            connected=st.session_state.get("connected", False),
+            user_role=st.session_state.get("user_role", "analyst"),
+        )
+    except Exception as _exc:
+        st.error(f"AI Governance tab failed to load: {_exc}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# TAB 10 — AUDIT & OBSERVABILITY
 # ═══════════════════════════════════════════════════════════════════════
 with tab_audit:
     try:

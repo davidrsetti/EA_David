@@ -370,3 +370,96 @@ def render_recommendation_step(st, state: GuidedSAState, user_role: str):
         st.code(out.archimate_prompt, language="text")
         st.markdown("**Architecture Decision Record starter**")
         st.code(out.architecture_decision_record, language="text")
+
+        st.markdown("---")
+        _render_adr_panel(st, state, out, rec)
+
+
+# ── ADR panel (D-2) ──────────────────────────────────────────────────────────
+
+def _render_adr_panel(st, state: GuidedSAState, out, rec) -> None:
+    """Full MADR generation + graph storage panel inside the Prompt/ADR tab."""
+    st.markdown("#### 📄 Generate Architecture Decision Record (MADR)")
+    st.markdown(
+        "Generates a full [MADR-format](https://adr.github.io/madr/) document from the guided SA "
+        "interview and stores it in the knowledge graph as a queryable resource."
+    )
+
+    bc = state.business_context
+
+    # Let the architect pick the chosen option
+    option_names = [o.get("name", f"Option {i}") for i, o in enumerate(out.options, 1)]
+    if option_names:
+        chosen = st.selectbox("Chosen option", option_names, key="adr_chosen_option")
+        chosen_opt = next(
+            (o for o in out.options if o.get("name") == chosen),
+            out.options[0] if out.options else {},
+        )
+        default_rationale = chosen_opt.get("fit", "")
+    else:
+        chosen = st.text_input("Decision / chosen option", key="adr_chosen_text",
+                               placeholder="e.g. Adopt Salesforce + MuleSoft integration platform")
+        chosen_opt = {}
+        default_rationale = out.rationale
+
+    rationale = st.text_area(
+        "Rationale (editable)",
+        value=default_rationale,
+        height=100,
+        key="adr_rationale",
+    )
+
+    gen_btn = st.button("📄 Generate & Store ADR", type="primary", key="adr_generate_btn")
+
+    if gen_btn:
+        with st.spinner("Generating MADR and storing in knowledge graph…"):
+            try:
+                from nexus.core.sa_advisor_v2 import generate_adr, store_adr_in_graph
+                madr_text, adr_uri = generate_adr(
+                    domain=bc.domain,
+                    capability=bc.capability_l3 or bc.capability_l2 or bc.capability_l1,
+                    business_goal=bc.business_goal,
+                    decision=chosen,
+                    rationale=rationale,
+                    options=out.options,
+                    risks=out.risks,
+                    roadmap=out.roadmap,
+                    author=st.session_state.get("user_role", "analyst"),
+                )
+                store_adr_in_graph(
+                    adr_uri=adr_uri,
+                    domain=bc.domain,
+                    capability=bc.capability_l3 or bc.capability_l2 or bc.capability_l1,
+                    madr_text=madr_text,
+                    author=st.session_state.get("user_role", "analyst"),
+                )
+                st.session_state["adr_result"] = {"madr": madr_text, "uri": adr_uri}
+                st.success(f"ADR stored in graph: `{adr_uri}`")
+            except Exception as exc:
+                st.error(f"ADR generation failed: {exc}")
+
+    adr_data = st.session_state.get("adr_result")
+    if adr_data:
+        st.markdown("**Generated ADR:**")
+        st.markdown(adr_data["madr"])
+        st.download_button(
+            label="⬇ Download MADR (.md)",
+            data=adr_data["madr"],
+            file_name=f"ADR-{bc.domain or 'nexus'}.md",
+            mime="text/markdown",
+            key="adr_download_btn",
+        )
+        st.caption(f"ADR URI: `{adr_data['uri']}`")
+
+        # Show existing ADRs for this domain
+        with st.expander("📚 Existing ADRs for this domain", expanded=False):
+            try:
+                from nexus.core.sa_advisor_v2 import list_adrs_from_graph
+                adrs = list_adrs_from_graph(domain=bc.domain)
+                if adrs:
+                    import pandas as pd
+                    st.dataframe(pd.DataFrame(adrs), use_container_width=True, hide_index=True)
+                else:
+                    st.caption(f"No ADRs found for domain '{bc.domain}'.")
+            except Exception as exc:
+                st.caption(f"Could not load ADR list: {exc}")

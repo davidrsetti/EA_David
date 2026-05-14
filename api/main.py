@@ -16,6 +16,9 @@ New endpoints (v2):
   POST /v1/apm/analyze           — Full APM portfolio analysis (TIME model)
   GET  /v1/apm/application/{id}  — Single application TIME score + context
   POST /v1/artifact/diagram      — Generate architecture diagram (DOT or Mermaid)
+  GET  /v1/ai-governance         — AI agent governance score + registry
+  POST /v1/adr/create            — Generate and store an ADR in the graph
+  GET  /v1/adr/list              — List ADRs, optionally filtered by capability
 """
 from __future__ import annotations
 import re
@@ -661,3 +664,145 @@ async def analyze_impact(
         ],
         "error": result.error,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AI GOVERNANCE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/v1/ai-governance", tags=["AI Governance"])
+async def get_ai_governance(
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """
+    Return the full AI agent governance picture:
+    - Agent registry (risk tier, platform, owner, tools, data access)
+    - Open governance findings
+    - Composite governance score (0–100) with 4-signal breakdown
+
+    Requires analyst role or higher.
+    """
+    from nexus.core.ai_governance import run_ai_governance
+    from nexus.audit.logger import log_agent_action
+
+    result = run_ai_governance(user_role=user.user_role)
+    log_agent_action(
+        agent_id="ai-governance", action="governance_review",
+        entity_uri="ai:Agent", permitted=True,
+        policy="governance-policy", classification="Internal",
+        domain="AI Governance",
+    )
+    return {
+        "governance_score":    result.governance_score,
+        "score_breakdown":     result.score_breakdown,
+        "total_agents":        result.total_agents,
+        "agents_with_tiers":   result.agents_with_tiers,
+        "agents_with_owners":  result.agents_with_owners,
+        "restricted_unrated":  result.restricted_unrated,
+        "open_critical":       result.open_critical,
+        "agents": [
+            {
+                "uri":              a.uri,
+                "label":            a.label,
+                "risk_tier":        a.risk_tier,
+                "platform":         a.platform,
+                "owner":            a.owner,
+                "tools":            a.tools,
+                "data_assets":      a.data_assets,
+                "classifications":  a.classifications,
+                "open_findings":    a.open_findings,
+                "critical_findings": a.critical_findings,
+            }
+            for a in result.agents
+        ],
+        "findings": [
+            {
+                "agent_label":  f.agent_label,
+                "finding_uri":  f.finding_uri,
+                "label":        f.label,
+                "severity":     f.severity,
+                "status":       f.status,
+                "asset_label":  f.asset_label,
+            }
+            for f in result.findings
+        ],
+        "error": result.error,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADR (Architecture Decision Records)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class ADRCreateRequest(BaseModel):
+    domain:        str = Field(..., description="Business domain name from the graph")
+    capability:    str = Field("",  description="Capability L3 (or L2) this ADR covers")
+    business_goal: str = Field("",  description="Business goal / outcome")
+    decision:      str = Field(..., description="Chosen option name or short decision statement")
+    rationale:     str = Field("",  description="Why this option was selected")
+    options:       list[dict] = Field(default_factory=list, description="Option analysis list from guided SA")
+    risks:         list[str]  = Field(default_factory=list, description="Identified risks")
+    roadmap:       list[str]  = Field(default_factory=list, description="Implementation roadmap steps")
+
+
+@app.post("/v1/adr/create", tags=["ADR"])
+async def create_adr(
+    req: ADRCreateRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """
+    Generate a MADR-format Architecture Decision Record, store it in the
+    knowledge graph as a ``doc:ArchitectureDecisionRecord`` node linked
+    to the relevant capability URI, and return the full MADR markdown.
+
+    Requires analyst role or higher.
+    """
+    from nexus.core.sa_advisor_v2 import generate_adr, store_adr_in_graph
+    from nexus.audit.logger import log_agent_action
+
+    madr_text, adr_uri = generate_adr(
+        domain=req.domain,
+        capability=req.capability,
+        business_goal=req.business_goal,
+        decision=req.decision,
+        rationale=req.rationale,
+        options=req.options,
+        risks=req.risks,
+        roadmap=req.roadmap,
+        author=user.username,
+    )
+    store_adr_in_graph(
+        adr_uri=adr_uri,
+        domain=req.domain,
+        capability=req.capability,
+        madr_text=madr_text,
+        author=user.username,
+    )
+    log_agent_action(
+        agent_id="adr-engine", action="adr_create",
+        entity_uri=adr_uri, permitted=True,
+        policy="adr-policy", classification="Internal",
+        domain=req.domain,
+    )
+    return {"adr_uri": adr_uri, "madr": madr_text}
+
+
+@app.get("/v1/adr/list", tags=["ADR"])
+async def list_adrs(
+    capability: str = Query("", description="Filter by capability name (partial match)"),
+    domain:     str = Query("", description="Filter by domain name (partial match)"),
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """
+    List all Architecture Decision Records stored in the knowledge graph.
+    Optionally filter by capability or domain.
+
+    Returns URI, title, domain, capability, author, and date for each ADR.
+    """
+    from nexus.core.sa_advisor_v2 import list_adrs_from_graph
+    if capability:
+        _safe_filter_param(capability, "capability")
+    if domain:
+        _safe_filter_param(domain, "domain")
+    adrs = list_adrs_from_graph(capability=capability, domain=domain)
+    return {"adrs": adrs}
