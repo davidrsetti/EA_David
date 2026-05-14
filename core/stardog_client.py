@@ -8,7 +8,7 @@ from typing import Any
 import requests
 import urllib3
 
-from nexus.config.settings import settings
+import nexus.config.settings as _settings_module
 from nexus.config.ontology_prefixes import SPARQL_PREFIX_BLOCK
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -26,7 +26,7 @@ class StardogClient:
     """
 
     def __init__(self):
-        cfg = settings.stardog
+        cfg = _settings_module.settings.stardog
         if not cfg.endpoint:
             raise StardogError("STARDOG_ENDPOINT is not configured.")
         self._endpoint  = cfg.endpoint
