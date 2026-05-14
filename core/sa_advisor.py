@@ -138,12 +138,12 @@ def run_sa_advisor(focus_domain: str = "", user_role: str = "analyst") -> SAAdvi
     # ── Q1: Capability → Application coverage ─────────────────────────────────
     cap_q = f"""
     SELECT ?cap ?capLabel ?app ?appLabel ?lifecycle ?domain WHERE {{
-        ?cap a ea:BusinessCapability .
+        ?cap a ea:BusinessCapabilityL3 .
         OPTIONAL {{ ?cap rdfs:label   ?capLabel }}
         OPTIONAL {{ ?cap ea:domain    ?domain   }}
         OPTIONAL {{
             ?app a app:Application ;
-                 ea:enablesBusinessCapability ?cap .
+                 ea:enablesBusinessCapabilityL3 ?cap .
             OPTIONAL {{ ?app rdfs:label   ?appLabel   }}
             OPTIONAL {{ ?app app:lifecycle ?lifecycle  }}
         }}
@@ -201,11 +201,11 @@ def run_sa_advisor(focus_domain: str = "", user_role: str = "analyst") -> SAAdvi
     # ── Q5: Capability gaps — capabilities with NO supporting app ─────────────
     gap_q = f"""
     SELECT ?cap ?capLabel ?domain ?strategicIntent WHERE {{
-        ?cap a ea:BusinessCapability .
+        ?cap a ea:BusinessCapabilityL3 .
         OPTIONAL {{ ?cap rdfs:label         ?capLabel        }}
         OPTIONAL {{ ?cap ea:domain          ?domain          }}
         OPTIONAL {{ ?cap ea:strategicIntent ?strategicIntent }}
-        FILTER NOT EXISTS {{ ?app ea:enablesBusinessCapability ?cap }}
+        FILTER NOT EXISTS {{ ?app ea:enablesBusinessCapabilityL3 ?cap }}
         {domain_filter}
     }} LIMIT 100
     """

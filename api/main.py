@@ -299,15 +299,15 @@ async def graph_health(user: AuthenticatedUser = Depends(require_role("admin", "
         "total_apps":          "SELECT (COUNT(*) AS ?count) WHERE { ?s a app:Application }",
         "total_data_assets":   "SELECT (COUNT(*) AS ?count) WHERE { ?s a data:DataAsset }",
         "total_agents":        "SELECT (COUNT(*) AS ?count) WHERE { ?s a ai:Agent }",
-        "total_capabilities":  "SELECT (COUNT(*) AS ?count) WHERE { ?s a ea:BusinessCapability }",
+        "total_capabilities":  "SELECT (COUNT(*) AS ?count) WHERE { ?s a ea:BusinessCapabilityL3 }",
         "open_findings":       "SELECT (COUNT(*) AS ?count) WHERE { ?s a nexus:AgentFinding ; nexus:findingStatus 'Open' }",
         "orphaned_apps":       "SELECT (COUNT(*) AS ?count) WHERE { ?s a app:Application . FILTER NOT EXISTS { ?s app:techOwner ?o } }",
         "unclassified_assets": "SELECT (COUNT(*) AS ?count) WHERE { ?s a data:DataAsset . FILTER NOT EXISTS { ?s data:classification ?c } }",
-        "capability_gaps":     "SELECT (COUNT(*) AS ?count) WHERE { ?s a ea:BusinessCapability . FILTER NOT EXISTS { ?a ea:enablesBusinessCapability ?s } }",
+        "capability_gaps":     "SELECT (COUNT(*) AS ?count) WHERE { ?s a ea:BusinessCapabilityL3 . FILTER NOT EXISTS { ?a ea:enablesBusinessCapabilityL3 ?s } }",
     }
     for key, q in checks.items():
         try:
-            _, rows = db.to_rows(db.query(q))
+            _, rows = db.to_rows(db.query(q, inject_prefixes=True))
             metrics[key] = int(rows[0].get("count", 0)) if rows else 0
         except Exception as exc:
             metrics[key] = f"error: {exc}"

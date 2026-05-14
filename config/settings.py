@@ -7,7 +7,10 @@ import os
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from the package root regardless of the working directory
+_ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env")
+load_dotenv(dotenv_path=_ENV_PATH, override=False)
+load_dotenv(override=False)  # also check CWD as fallback
 
 
 @dataclass(frozen=True)

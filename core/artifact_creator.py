@@ -281,12 +281,12 @@ def _capability_map(entity: str = "", depth: int = 2, fmt: str = "mermaid",
 
     q = f"""
     SELECT ?cap ?capLabel ?app ?appLabel ?lifecycle ?domain WHERE {{
-        ?cap a ea:BusinessCapability .
+        ?cap a ea:BusinessCapabilityL3 .
         OPTIONAL {{ ?cap rdfs:label  ?capLabel }}
         OPTIONAL {{ ?cap ea:domain   ?domain   }}
         OPTIONAL {{
             ?app a app:Application ;
-                 ea:enablesBusinessCapability ?cap .
+                 ea:enablesBusinessCapabilityL3 ?cap .
             OPTIONAL {{ ?app rdfs:label   ?appLabel   }}
             OPTIONAL {{ ?app app:lifecycle ?lifecycle  }}
         }}
@@ -540,7 +540,7 @@ def _c4_context(entity: str = "", depth: int = 1, fmt: str = "mermaid",
         FILTER(CONTAINS(LCASE(STR(?appLabel)), "{entity.lower()}"))
         OPTIONAL {{ ?app app:techOwner              ?owner .     ?owner rdfs:label ?ownerLabel }}
         OPTIONAL {{ ?app app:dependsOn              ?dep   .     ?dep   rdfs:label ?depLabel   }}
-        OPTIONAL {{ ?app ea:enablesBusinessCapability ?capability . ?capability rdfs:label ?capLabel }}
+        OPTIONAL {{ ?app ea:enablesBusinessCapabilityL3 ?capability . ?capability rdfs:label ?capLabel }}
         OPTIONAL {{
             ?user a hr:User ;
                   sec:hasAccess ?app .

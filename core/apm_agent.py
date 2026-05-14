@@ -347,7 +347,7 @@ def run_apm_agent(focus_domain: str = "", user_role: str = "analyst") -> APMPort
         OPTIONAL {{ ?app app:platform     ?platform       }}
         OPTIONAL {{ ?app ea:domain        ?domain         }}
         OPTIONAL {{ ?app ea:strategicIntent          ?strategicIntent }}
-        OPTIONAL {{ ?app ea:enablesBusinessCapability ?cap            }}
+        OPTIONAL {{ ?app ea:enablesBusinessCapabilityL3 ?cap            }}
         OPTIONAL {{ ?app app:dependsOn               ?dep            }}
         OPTIONAL {{ ?consumer app:dependsOn ?app          }}
         {domain_filter}
@@ -538,7 +538,7 @@ def get_app_detail(app_name: str, user_role: str = "analyst") -> dict:
         OPTIONAL {{ ?app ea:domain        ?domain         }}
         OPTIONAL {{ ?app ea:strategicIntent          ?strategicIntent }}
         OPTIONAL {{ ?app app:hostingEnv              ?hostingEnv     }}
-        OPTIONAL {{ ?app ea:enablesBusinessCapability ?cap            }}
+        OPTIONAL {{ ?app ea:enablesBusinessCapabilityL3 ?cap            }}
         OPTIONAL {{ ?app app:dependsOn               ?dep            }}
         OPTIONAL {{ ?consumer app:dependsOn ?app          }}
         OPTIONAL {{
