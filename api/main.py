@@ -18,6 +18,7 @@ New endpoints (v2):
   POST /v1/artifact/diagram      — Generate architecture diagram (DOT or Mermaid)
 """
 from __future__ import annotations
+import re
 import time
 import logging
 from typing import Annotated, Any
@@ -29,6 +30,19 @@ from pydantic import BaseModel, Field
 from nexus.api.auth import AuthenticatedUser, get_current_user, require_role
 from nexus.api.middleware import RateLimitMiddleware
 from nexus.config.settings import settings
+
+# Characters that can break out of SPARQL string interpolation
+_SPARQL_INJECTION_RE = re.compile(r"[}{#;]")
+
+
+def _safe_filter_param(value: str, param_name: str) -> str:
+    """Reject strings that could inject SPARQL via f-string interpolation."""
+    if _SPARQL_INJECTION_RE.search(value):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid characters in '{param_name}': characters '}}', '{{', '#', ';' are not allowed.",
+        )
+    return value
 
 logger = logging.getLogger(__name__)
 
@@ -335,6 +349,7 @@ async def sa_advisor(
     from nexus.core.sa_advisor  import run_sa_advisor
     from nexus.audit.logger     import log_agent_action
 
+    _safe_filter_param(req.focus_domain, "focus_domain")
     t0 = time.monotonic()
     result = run_sa_advisor(
         focus_domain=req.focus_domain,
@@ -433,6 +448,7 @@ async def apm_analyze(
     if user.user_role not in ("admin", "analyst", "data-steward"):
         raise HTTPException(status_code=403, detail="APM analysis requires analyst or higher role.")
 
+    _safe_filter_param(req.focus_domain, "focus_domain")
     t0     = time.monotonic()
     result = run_apm_agent(focus_domain=req.focus_domain, user_role=user.user_role)
 
@@ -530,6 +546,8 @@ async def generate_diagram(
     from nexus.core.artifact_creator import generate_diagram, ENTITY_REQUIRED
     from nexus.audit.logger          import log_agent_action
 
+    _safe_filter_param(req.entity, "entity")
+    _safe_filter_param(req.domain_filter, "domain_filter")
     if req.diagram_type in ENTITY_REQUIRED and not req.entity:
         raise HTTPException(
             status_code=400,

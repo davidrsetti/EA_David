@@ -205,6 +205,9 @@ def make_client(endpoint, token, oai_key, db):
     # Reset the frozen Settings singleton so it re-reads env vars
     import nexus.config.settings as _cfg
     _cfg.settings = _cfg.Settings()
+    # Invalidate schema cache so the new endpoint's ontology is fetched fresh
+    from nexus.core.sa_advisor_v2 import invalidate_schema_cache
+    invalidate_schema_cache()
     from nexus.core.stardog_client import StardogClient
     client = StardogClient()
     _sc._client = client

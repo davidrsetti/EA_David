@@ -5,8 +5,12 @@ All environment variables resolved here. Never import os.getenv elsewhere.
 from __future__ import annotations
 import os
 import ssl as _ssl
+import secrets
+import logging
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
+
+_settings_logger = logging.getLogger(__name__)
 
 
 # Load .env from the package root regardless of the working directory
@@ -69,6 +73,16 @@ def _patch_corporate_ssl() -> None:
 _patch_corporate_ssl()
 
 
+def _random_dev_secret() -> str:
+    """Generate a random JWT secret for non-production when JWT_SECRET is unset."""
+    secret = secrets.token_hex(32)
+    _settings_logger.warning(
+        "JWT_SECRET not set — using a randomly generated secret for this process. "
+        "Tokens will not survive restarts. Set JWT_SECRET in .env for persistent auth."
+    )
+    return secret
+
+
 @dataclass(frozen=True)
 class StardogSettings:
     endpoint:     str  = field(default_factory=lambda: os.getenv("STARDOG_ENDPOINT", ""))
@@ -91,7 +105,7 @@ class OpenAISettings:
 
 @dataclass(frozen=True)
 class SecuritySettings:
-    jwt_secret:         str  = field(default_factory=lambda: os.getenv("JWT_SECRET", "change-me-in-prod"))
+    jwt_secret:         str  = field(default_factory=lambda: os.getenv("JWT_SECRET") or _random_dev_secret())
     jwt_algorithm:      str  = "HS256"
     token_expire_mins:  int  = field(default_factory=lambda: int(os.getenv("TOKEN_EXPIRE_MINS", "480")))
     rate_limit_per_hour: int = field(default_factory=lambda: int(os.getenv("RATE_LIMIT_PER_HOUR", "60")))
@@ -141,9 +155,9 @@ class Settings:
 # Singleton — import this everywhere
 settings = Settings()
 
-# Fail fast in production if secrets are still at their insecure defaults
-if settings.is_production and settings.security.jwt_secret == "change-me-in-prod":
+# Fail fast in production if JWT_SECRET is not explicitly set
+if settings.is_production and not os.getenv("JWT_SECRET"):
     raise RuntimeError(
-        "JWT_SECRET must be set to a strong secret value in production. "
-        "Do not use the default 'change-me-in-prod' value."
+        "JWT_SECRET must be explicitly set in production. "
+        "A randomly generated secret cannot be used in production as it will not survive restarts."
     )
