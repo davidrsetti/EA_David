@@ -4,15 +4,34 @@ Handles auth, query execution, EXPLAIN, and triple insertion.
 """
 from __future__ import annotations
 import logging
+import ssl
 from typing import Any
 import requests
+from requests.adapters import HTTPAdapter
 import urllib3
+from urllib3.util.retry import Retry
 
 import nexus.config.settings as _settings_module
 from nexus.config.ontology_prefixes import SPARQL_PREFIX_BLOCK
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logger = logging.getLogger(__name__)
+
+
+def _build_session() -> requests.Session:
+    """Session with retries for transient SSL EOF / connection drops (Zscaler-friendly)."""
+    s = requests.Session()
+    retry = Retry(
+        total=3, connect=3, read=3,
+        backoff_factor=0.6,
+        status_forcelist=(502, 503, 504),
+        allowed_methods=frozenset({"GET", "POST"}),
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=4, pool_maxsize=8)
+    s.mount("https://", adapter)
+    s.mount("http://",  adapter)
+    return s
 
 
 class StardogError(Exception):
@@ -34,6 +53,7 @@ class StardogClient:
         self._scheme    = cfg.auth_scheme
         self._verify    = cfg.verify_tls
         self._timeout   = cfg.timeout
+        self._session   = _build_session()
 
     # ── Auth headers ───────────────────────────────────────────────
 
@@ -43,6 +63,27 @@ class StardogClient:
             h["Authorization"] = f"{self._scheme} {self._token}"
         return h
 
+    # ── Transport with SSL-EOF retry ───────────────────────────────
+
+    def _post(self, url: str, *, data: bytes, headers: dict) -> requests.Response:
+        """POST with up to 3 attempts on SSL EOF / ConnectionError (Zscaler drops idle TLS)."""
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                return self._session.post(
+                    url, data=data, headers=headers,
+                    verify=self._verify, timeout=self._timeout,
+                )
+            except (requests.exceptions.SSLError,
+                    requests.exceptions.ConnectionError,
+                    ssl.SSLEOFError) as exc:
+                last_exc = exc
+                logger.warning("Stardog POST attempt %d failed: %s", attempt + 1, exc)
+                # Drop pooled connections — the server already closed them.
+                self._session.close()
+                self._session = _build_session()
+        raise StardogError(f"Stardog unreachable after 3 attempts: {last_exc}")
+
     # ── SELECT / ASK / CONSTRUCT ───────────────────────────────────
 
     def query(self, sparql: str, inject_prefixes: bool = False) -> dict[str, Any]:
@@ -50,12 +91,10 @@ class StardogClient:
         full_query = (SPARQL_PREFIX_BLOCK + "\n\n" + sparql) if inject_prefixes else sparql
         logger.debug("SPARQL QUERY:\n%s", full_query)
 
-        resp = requests.post(
+        resp = self._post(
             self._endpoint,
             data=full_query.encode("utf-8"),
             headers={**self._headers(), "Content-Type": "application/sparql-query"},
-            verify=self._verify,
-            timeout=self._timeout,
         )
         self._raise_for_status(resp)
         return resp.json()
@@ -67,12 +106,10 @@ class StardogClient:
         logger.debug("SPARQL UPDATE:\n%s", sparql_update)
         update_endpoint = self._endpoint.replace("/query", "/update")
 
-        resp = requests.post(
+        resp = self._post(
             update_endpoint,
             data=sparql_update.encode("utf-8"),
             headers={**self._headers("application/json"), "Content-Type": "application/sparql-update"},
-            verify=self._verify,
-            timeout=self._timeout,
         )
         self._raise_for_status(resp)
         return True
@@ -82,12 +119,10 @@ class StardogClient:
     def explain(self, sparql: str) -> str:
         """Return Stardog's EXPLAIN plan for a query (text/plain)."""
         explain_endpoint = self._endpoint.replace("/query", "/explain")
-        resp = requests.post(
+        resp = self._post(
             explain_endpoint,
             data=sparql.encode("utf-8"),
             headers={**self._headers("text/plain"), "Content-Type": "application/sparql-query"},
-            verify=self._verify,
-            timeout=self._timeout,
         )
         self._raise_for_status(resp)
         return resp.text

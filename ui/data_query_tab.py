@@ -65,6 +65,10 @@ def _init_state():
 def _clear_query():
     for k in ("dq_sql", "dq_result_cols", "dq_result_rows", "dq_answer", "dq_question"):
         st.session_state[k] = "" if isinstance(st.session_state[k], str) else []
+    # Also clear the bound widget state so the text-area visibly empties on rerun.
+    for widget_key in ("_dq_question", "_dq_sql_area"):
+        if widget_key in st.session_state:
+            del st.session_state[widget_key]
 
 # ── StarDog reads ─────────────────────────────────────────────────────────────
 
@@ -78,6 +82,24 @@ def _labels(stardog, cls, graph):
 
 def _get_bus(sd):     return _labels(sd, "BusinessUnit", ENRICHMENT_GRAPH)
 def _get_domains(sd): return _labels(sd, "DataDomain",   ENRICHMENT_GRAPH)
+
+
+def _get_domains_for_bu(sd, bu: str) -> list[str]:
+    """Return only the Data Domains that have ≥1 table also belonging to ``bu``."""
+    if not bu:
+        return _get_domains(sd)
+    q = f"""{_PREFIXES}
+SELECT DISTINCT ?l WHERE {{
+  GRAPH <{ENRICHMENT_GRAPH}> {{
+    ?t uc:belongsToBU     ?_bu  . ?_bu  rdfs:label {_lit(bu)} .
+    ?t uc:belongsToDomain ?_dom . ?_dom rdfs:label ?l .
+  }}
+}} ORDER BY ?l"""
+    try:
+        _, rows = sd.to_rows(sd.query(q))
+        return [r["l"] for r in rows]
+    except Exception:
+        return []
 
 
 def _fetch_scoped_tables(stardog, bu: str | None, domains: list[str]) -> list[dict]:
@@ -308,9 +330,9 @@ def render_data_query_tab(stardog, databricks):
 
     # ── Scope selectors ───────────────────────────────────────────────────────
     all_bus  = _get_bus(stardog)
-    all_doms = _get_domains(stardog)
+    all_doms_unfiltered = _get_domains(stardog)
 
-    if not all_bus and not all_doms:
+    if not all_bus and not all_doms_unfiltered:
         st.info("No Business Units or Data Domains defined yet. Use **⚙️ Manage** below to create them, then assign tables.")
         _render_manage_panel(stardog)
         return
@@ -325,9 +347,12 @@ def render_data_query_tab(stardog, databricks):
                               key="_dq_bu", label_visibility="collapsed")
         new_bu = None if bu_sel == "— Select BU —" else bu_sel
 
+    # Cascade: when a BU is chosen, only show Data Domains that have a table in that BU.
+    domain_opts = _get_domains_for_bu(stardog, new_bu) if new_bu else all_doms_unfiltered
+
     with col_dom:
-        dom_sel = st.multiselect("Data Domains", all_doms,
-                                 default=[d for d in st.session_state.dq_domains if d in all_doms],
+        dom_sel = st.multiselect("Data Domains", domain_opts,
+                                 default=[d for d in st.session_state.dq_domains if d in domain_opts],
                                  key="_dq_doms", placeholder="Select Data Domain(s)…",
                                  label_visibility="collapsed")
 
@@ -353,28 +378,17 @@ def render_data_query_tab(stardog, databricks):
     # Scope summary
     if scope_ready:
         if scoped:
-            tbl_names = ", ".join(f"`{t['table']}`" for t in scoped)
-            st.caption(f"📂 {len(scoped)} table(s) in scope: {tbl_names}")
-            with st.expander("View schemas", expanded=False):
+            st.caption(f"📂 {len(scoped)} data product(s) in scope")
+            with st.expander("Views and Tables", expanded=False):
                 for t in scoped:
                     st.markdown(
                         f"**`{t['catalog']}`.`{t['schema']}`.`{t['table']}`**"
-                        f"  ·  {len(t['columns'])} columns"
+                        f"  ·  *data product / data set*"
                     )
                     if t.get("description"):
                         st.caption(t["description"])
-                    if t["columns"]:
-                        cols_sorted = sorted(t["columns"], key=lambda x: int(x.get("ordinalPosition", 0)))
-                        has_desc = any(c.get("colComment") for c in cols_sorted)
-                        col_rows = []
-                        for c in cols_sorted:
-                            row = {"Column": c["colName"], "Type": c["dataType"]}
-                            if has_desc:
-                                row["Description"] = c.get("colComment") or ""
-                            col_rows.append(row)
-                        st.dataframe(pd.DataFrame(col_rows), hide_index=True, use_container_width=True)
         else:
-            st.warning("No tables are assigned to this BU/Domain yet. Use ⚙️ Manage below to assign tables.")
+            st.warning("No data products are assigned to this BU/Domain yet. Use ⚙️ Manage below to assign tables.")
 
     st.markdown("---")
 

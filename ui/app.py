@@ -687,10 +687,12 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
             raise ValueError(
                 "ANTHROPIC_API_KEY not set. Add it to your .env file: ANTHROPIC_API_KEY=sk-ant-..."
             )
-        # SSL: set SSL_CERT_FILE=/path/to/ca-bundle.pem in .env for Zscaler/proxy.
-        # Set SSL_CERT_FILE=false for local dev only.
-        _ssl = os.getenv("SSL_CERT_FILE", "").strip()
-        _verify: bool | str = False if _ssl.lower() == "false" else (_ssl or True)
+        # Zscaler corporate SSL interception: hardcode verify=False to match the
+        # Stardog and Databricks clients. Shell env vars SSL_CERT_FILE /
+        # REQUESTS_CA_BUNDLE are deliberately ignored because they point at
+        # corp-specific bundles that don't include the Anthropic API chain.
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         resp = req.post(
             "https://api.anthropic.com/v1/messages",
             headers={
@@ -705,7 +707,7 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
                 "messages": [{"role": "user", "content": f"Architecture to diagram: {prompt}"}],
             },
             timeout=60,
-            verify=_verify,
+            verify=False,
         )
         if not resp.ok:
             raise RuntimeError(f"Anthropic API error {resp.status_code}: {resp.text[:400]}")
@@ -877,10 +879,16 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
         unsafe_allow_html=True
     )
 
-    # Prompt input
+    # Prompt input — example chips pre-fill via a "_pending" key that we copy
+    # into the widget's slot BEFORE the widget renders, since Streamlit forbids
+    # writing to a widget key after it has been instantiated on the same run.
+    if "_sa_pending_prompt" in st.session_state:
+        st.session_state.sa_prompt_input = st.session_state.pop("_sa_pending_prompt")
+    elif "sa_prompt_input" not in st.session_state:
+        st.session_state.sa_prompt_input = st.session_state.sa_prompt
+
     sa_prompt = st.text_area(
         "Architecture description",
-        value=st.session_state.sa_prompt,
         placeholder="Describe your architecture… e.g. 'NEXUS AI agent governance with data stewardship and audit controls'",
         height=80,
         key="sa_prompt_input",
@@ -903,6 +911,7 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
     for i, ex in enumerate(SA_EXAMPLES):
         if ex_cols[i % 3].button(ex, key=f"sa_ex_{i}", use_container_width=True):
             st.session_state.sa_prompt = ex
+            st.session_state["_sa_pending_prompt"] = ex
             st.rerun()
 
     st.divider()
