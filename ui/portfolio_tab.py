@@ -8,19 +8,26 @@ and prioritised Quick Wins — all scored automatically from the live knowledge 
 from __future__ import annotations
 import streamlit as st
 
+from nexus.ui.theme import (
+    ORANGE, ORANGE_DARK, ORANGE_LIGHT, NEAR_BLACK, WHITE,
+    GREY_TEXT, GREY_DARK, GREY_LINE, GREY_MUTED, SURFACE_2, SURFACE,
+)
+from nexus.ui.icons import icon, mat
 
-# ── Time class colours & icons ────────────────────────────────────────────────
+
+# Strict palette: depth-of-orange-or-grey encodes TIME class.
 _TIME_COLOUR = {
-    "Invest":    "#10b981",
-    "Tolerate":  "#f59e0b",
-    "Migrate":   "#3b82f6",
-    "Eliminate": "#ef4444",
+    "Invest":    ORANGE,        # primary action — keep / grow
+    "Tolerate":  GREY_DARK,     # neutral — leave alone
+    "Migrate":   ORANGE_LIGHT,  # secondary action — modernise
+    "Eliminate": NEAR_BLACK,    # decisive — kill
 }
+# Material icon shortcodes for TIME quadrants (used in metric labels & legend).
 _TIME_ICON = {
-    "Invest":    "🟢",
-    "Tolerate":  "🟡",
-    "Migrate":   "🔵",
-    "Eliminate": "🔴",
+    "Invest":    mat("trending_up"),
+    "Tolerate":  mat("pause"),
+    "Migrate":   mat("sync_alt"),
+    "Eliminate": mat("close"),
 }
 _TIME_DESC = {
     "Invest":    "Strategic priority — increase capability, modernise, expand.",
@@ -32,10 +39,10 @@ _TIME_DESC = {
 
 def _health_colour(score: int) -> str:
     if score >= 75:
-        return "#10b981"
+        return NEAR_BLACK
     if score >= 50:
-        return "#f59e0b"
-    return "#ef4444"
+        return GREY_DARK
+    return ORANGE_DARK
 
 
 def _health_label(score: int) -> str:
@@ -53,13 +60,16 @@ def _health_label(score: int) -> str:
 def render_portfolio_tab(connected: bool, user_role: str) -> None:
     """Render the Portfolio Intelligence tab."""
     st.markdown(
-        """
-        <div style="border-left:4px solid #F36633;padding-left:1rem;margin-bottom:1.5rem">
-          <h2 style="margin:0;font-size:1.4rem;color:#1A1A1A">📊 Application Portfolio Intelligence</h2>
-          <p style="margin:.25rem 0 0;color:#777;font-size:.9rem">
-            Gartner TIME model scoring — automatically computed from live graph data:
-            capabilities, dependencies, findings, and lifecycle signals.
-          </p>
+        f"""
+        <div style="border-left:4px solid {ORANGE};padding-left:1rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:.8rem">
+          <span>{icon("bar-chart", size=26, color=ORANGE)}</span>
+          <div>
+            <h2 style="margin:0;font-size:1.4rem;color:{NEAR_BLACK}">Application Portfolio Intelligence</h2>
+            <p style="margin:.25rem 0 0;color:{GREY_TEXT};font-size:.9rem">
+              Gartner TIME model scoring — automatically computed from live graph data:
+              capabilities, dependencies, findings, and lifecycle signals.
+            </p>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -80,10 +90,10 @@ def render_portfolio_tab(connected: bool, user_role: str) -> None:
         )
     with col_ctrl2:
         st.markdown("<br>", unsafe_allow_html=True)
-        run_btn = st.button("⚡ Analyse Portfolio", key="portfolio_run", type="primary")
+        run_btn = st.button(f"{mat('bolt')}  Analyse Portfolio", key="portfolio_run", type="primary")
     with col_ctrl3:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔄 Clear", key="portfolio_clear"):
+        if st.button(f"{mat('refresh')}  Clear", key="portfolio_clear"):
             for k in list(st.session_state.keys()):
                 if k.startswith("portfolio_result"):
                     del st.session_state[k]
@@ -128,10 +138,10 @@ def _render_health_strip(result) -> None:
     st.markdown(
         f"""
         <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:.5rem">
-          <div style="background:#fff;border:1px solid #D8D8D8;border-radius:8px;
+          <div style="background:{WHITE};border:1px solid {GREY_LINE};border-radius:8px;
                       padding:1rem 1.5rem;min-width:140px;border-top:4px solid {hc}">
             <div style="font-size:2rem;font-weight:700;color:{hc}">{result.portfolio_health}</div>
-            <div style="font-size:.75rem;color:#777;text-transform:uppercase;letter-spacing:.05em">
+            <div style="font-size:.75rem;color:{GREY_TEXT};text-transform:uppercase;letter-spacing:.05em">
               Portfolio Health</div>
             <div style="font-size:.8rem;color:{hc};font-weight:600">{hl}</div>
           </div>
@@ -139,15 +149,15 @@ def _render_health_strip(result) -> None:
         unsafe_allow_html=True,
     )
     for tc, count in result.time_summary.items():
-        colour = _TIME_COLOUR.get(tc, "#888")
-        icon = _TIME_ICON.get(tc, "⚫")
+        colour = _TIME_COLOUR.get(tc, GREY_TEXT)
+        tc_icon = _TIME_ICON.get(tc, mat("circle"))
         st.markdown(
             f"""
-          <div style="background:#fff;border:1px solid #D8D8D8;border-radius:8px;
+          <div style="background:{WHITE};border:1px solid {GREY_LINE};border-radius:8px;
                       padding:1rem 1.5rem;min-width:120px;border-top:4px solid {colour}">
             <div style="font-size:2rem;font-weight:700;color:{colour}">{count}</div>
-            <div style="font-size:.75rem;color:#777;text-transform:uppercase;letter-spacing:.05em">
-              {icon} {tc}</div>
+            <div style="font-size:.75rem;color:{GREY_TEXT};text-transform:uppercase;letter-spacing:.05em">
+              {tc_icon} {tc}</div>
           </div>
             """,
             unsafe_allow_html=True,
@@ -187,12 +197,12 @@ def _render_time_quadrant(result) -> None:
             x=[s.technical_fit for s in apps],
             y=[s.business_value for s in apps],
             mode="markers+text",
-            name=f"{_TIME_ICON[tc]} {tc}",
-            marker=dict(color=colour, size=12, opacity=0.8,
-                        line=dict(color="white", width=1)),
+            name=tc,
+            marker=dict(color=colour, size=12, opacity=0.85,
+                        line=dict(color=WHITE, width=1)),
             text=[s.app_label for s in apps],
             textposition="top center",
-            textfont=dict(size=9),
+            textfont=dict(size=9, color=NEAR_BLACK),
             hovertemplate=(
                 "<b>%{text}</b><br>"
                 "Technical Fit: %{x:.1f}<br>"
@@ -203,8 +213,8 @@ def _render_time_quadrant(result) -> None:
         ))
 
     # Quadrant lines
-    fig.add_hline(y=4.0, line_dash="dash", line_color="#D8D8D8", line_width=1)
-    fig.add_vline(x=5.0, line_dash="dash", line_color="#D8D8D8", line_width=1)
+    fig.add_hline(y=4.0, line_dash="dash", line_color=GREY_LINE, line_width=1)
+    fig.add_vline(x=5.0, line_dash="dash", line_color=GREY_LINE, line_width=1)
 
     # Quadrant labels
     for (x, y, label) in [
@@ -214,18 +224,19 @@ def _render_time_quadrant(result) -> None:
         fig.add_annotation(
             x=x, y=y, text=label,
             showarrow=False,
-            font=dict(size=10, color="#D8D8D8"),
-            opacity=0.6,
+            font=dict(size=10, color=GREY_LINE),
+            opacity=0.7,
         )
 
     fig.update_layout(
         xaxis_title="Technical Fit →",
         yaxis_title="Business Value →",
-        xaxis=dict(range=[0, 10.5], gridcolor="#F2F2F2"),
-        yaxis=dict(range=[0, 10.5], gridcolor="#F2F2F2"),
-        plot_bgcolor="#FAFAFA",
-        paper_bgcolor="white",
-        legend=dict(orientation="h", y=-0.15),
+        xaxis=dict(range=[0, 10.5], gridcolor=SURFACE_2),
+        yaxis=dict(range=[0, 10.5], gridcolor=SURFACE_2),
+        plot_bgcolor=SURFACE,
+        paper_bgcolor=WHITE,
+        legend=dict(orientation="h", y=-0.15, font=dict(color=NEAR_BLACK)),
+        font=dict(color=NEAR_BLACK),
         margin=dict(l=40, r=20, t=20, b=60),
         height=480,
     )
@@ -237,14 +248,15 @@ def _render_quick_wins(result) -> None:
     """Highlight quick win opportunities."""
     if not result.quick_wins:
         return
-    st.markdown("### ⚡ Quick Wins")
+    st.markdown(f"<div class='nx-section'>{icon('zap', size=14, color=ORANGE)} Quick Wins</div>", unsafe_allow_html=True)
     cols = st.columns(min(3, len(result.quick_wins)))
     for i, qw in enumerate(result.quick_wins[:6]):
         with cols[i % 3]:
             st.markdown(
-                f"""<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;
-                               padding:.75rem 1rem;font-size:.85rem;color:#065f46">
-                  ✅ {qw}
+                f"""<div style="background:{WHITE};border:1px solid {GREY_LINE};border-left:3px solid {ORANGE};border-radius:8px;
+                               padding:.75rem 1rem;font-size:.85rem;color:{NEAR_BLACK};display:flex;gap:.5rem;align-items:flex-start">
+                  <span style="color:{ORANGE};flex-shrink:0">{icon('check-circle', size=16, color=ORANGE)}</span>
+                  <span>{qw}</span>
                 </div>""",
                 unsafe_allow_html=True,
             )
@@ -264,7 +276,7 @@ def _render_app_table(result) -> None:
         tc = s.time_class.value
         rows.append({
             "Application":      s.app_label,
-            "TIME":             f"{_TIME_ICON.get(tc,'⚫')} {tc}",
+            "TIME":             tc,
             "Portfolio Score":  s.portfolio_score,
             "Business Value":   round(s.business_value, 1),
             "Technical Fit":    round(s.technical_fit, 1),
@@ -311,8 +323,8 @@ def _render_rationalisations(result) -> None:
     st.markdown("### Rationalisation Actions")
     for r in result.rationalisations:
         tc = r.time_class.value if hasattr(r.time_class, "value") else str(r.time_class)
-        colour = _TIME_COLOUR.get(tc, "#888")
-        with st.expander(f"{_TIME_ICON.get(tc,'⚫')} **{r.app_label}** — {r.action}"):
+        colour = _TIME_COLOUR.get(tc, GREY_TEXT)
+        with st.expander(f"[{tc}] {r.app_label} — {r.action}"):
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Timeline",   r.timeline)

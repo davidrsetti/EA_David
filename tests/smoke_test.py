@@ -388,10 +388,10 @@ def _c05(tc, ctx):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _h01(tc, ctx):
-    """Users are linked to departments (hr:belongsToDepartment)."""
+    """Users are linked to departments (hr:memberOfDepartment)."""
     q = """
     SELECT (COUNT(?u) AS ?count) WHERE {
-        ?u a hr:User ; hr:belongsToDepartment ?dept .
+        ?u a hr:User ; hr:memberOfDepartment ?dept .
     }
     """
     t0 = time.monotonic()
@@ -404,7 +404,7 @@ def _h02(tc, ctx):
     """Departmental headcount is queryable (returns ranked list)."""
     q = """
     SELECT ?dept (COUNT(?u) AS ?n) WHERE {
-        ?u a hr:User ; hr:belongsToDepartment ?dept .
+        ?u a hr:User ; hr:memberOfDepartment ?dept .
     } GROUP BY ?dept ORDER BY DESC(?n) LIMIT 10
     """
     t0 = time.monotonic()

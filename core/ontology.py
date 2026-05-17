@@ -21,8 +21,8 @@ _CACHE_TTL_SECONDS = int(os.getenv("ONTOLOGY_CACHE_TTL", "3600"))
 _CLASS_LIMIT = int(os.getenv("ONTOLOGY_CLASS_LIMIT", "500"))
 _PROPERTY_LIMIT = int(os.getenv("ONTOLOGY_PROPERTY_LIMIT", "500"))
 _ONTOLOGY_BASES = (
-    "http://example.com/",
-    "http://nexus.enterprise.com/",
+    "https://ontology.ea.example.org/",
+    "https://nexus.platform/",
     "urn:EA_AI_Intelligence:",
 )
 
@@ -108,18 +108,23 @@ def _fetch() -> None:
     # Sample capability labels per key class — grounds the model on real values.
     # Query each class independently so one large class can't consume the full limit.
     _SAMPLE_CLASSES = [
-        ("TechnologyCapabilityL1", "http://example.com/ea#TechnologyCapabilityL1"),
-        ("TechnologyCapabilityL2", "http://example.com/ea#TechnologyCapabilityL2"),
-        ("TechnologyCapabilityL3", "http://example.com/ea#TechnologyCapabilityL3"),
-        ("BusinessCapabilityL1",   "http://example.com/ea#BusinessCapabilityL1"),
-        ("BusinessCapabilityL2",   "http://example.com/ea#BusinessCapabilityL2"),
-        ("BusinessCapabilityL3",   "http://example.com/ea#BusinessCapabilityL3"),
-        ("CSOCapabilityL1",        "http://example.com/ea#CSOCapabilityL1"),
-        ("CSOCapabilityL2",        "http://example.com/ea#CSOCapabilityL2"),
-        ("CSOCapabilityL3",        "http://example.com/ea#CSOCapabilityL3"),
-        ("EATechnologyDomain",     "http://example.com/ea#EATechnologyDomain"),
-        ("Technology",             "http://example.com/ea#Technology"),
-        ("Department",             "http://example.com/hr#Department"),
+        ("TechnologyCapabilityL1", "https://ontology.ea.example.org/ea#TechnologyCapabilityL1"),
+        ("TechnologyCapabilityL2", "https://ontology.ea.example.org/ea#TechnologyCapabilityL2"),
+        ("TechnologyCapabilityL3", "https://ontology.ea.example.org/ea#TechnologyCapabilityL3"),
+        ("BusinessCapabilityL1",   "https://ontology.ea.example.org/ea#BusinessCapabilityL1"),
+        ("BusinessCapabilityL2",   "https://ontology.ea.example.org/ea#BusinessCapabilityL2"),
+        ("BusinessCapabilityL3",   "https://ontology.ea.example.org/ea#BusinessCapabilityL3"),
+        ("CSOCapabilityL1",        "https://ontology.ea.example.org/ea#CSOCapabilityL1"),
+        ("CSOCapabilityL2",        "https://ontology.ea.example.org/ea#CSOCapabilityL2"),
+        ("CSOCapabilityL3",        "https://ontology.ea.example.org/ea#CSOCapabilityL3"),
+        ("EATechnologyDomain",     "https://ontology.ea.example.org/ea#EATechnologyDomain"),
+        ("Technology",             "https://ontology.ea.example.org/ea#Technology"),
+        ("Department",             "https://ontology.ea.example.org/hr#Department"),
+        ("Application",            "https://ontology.ea.example.org/app#Application"),
+        ("Agent",                  "https://ontology.ea.example.org/ai#Agent"),
+        ("AISkill",                "https://ontology.ea.example.org/ai#AISkill"),
+        ("SolutionCategory",       "https://ontology.ea.example.org/ea#SolutionCategory"),
+        ("AgentFinding",           "https://nexus.platform/ops#AgentFinding"),
     ]
 
     try:

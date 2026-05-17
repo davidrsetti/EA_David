@@ -366,7 +366,7 @@ def _data_lineage(entity: str = "", depth: int = 3, fmt: str = "dot",
 
     up_q = f"""
     SELECT ?asset ?assetLabel ?upstream ?upstreamLabel ?classification WHERE {{
-        ?asset a data:DataAsset .
+        ?asset a data:Dataset .
         OPTIONAL {{ ?asset rdfs:label          ?assetLabel     }}
         OPTIONAL {{ ?asset data:classification ?classification }}
         {anchor}
@@ -376,7 +376,7 @@ def _data_lineage(entity: str = "", depth: int = 3, fmt: str = "dot",
     """
     down_q = f"""
     SELECT ?asset ?assetLabel ?downstream ?downstreamLabel WHERE {{
-        ?asset a data:DataAsset .
+        ?asset a data:Dataset .
         OPTIONAL {{ ?asset rdfs:label ?assetLabel }}
         {anchor}
         ?downstream (data:lineageFrom){{1,{depth}}} ?asset .
@@ -643,7 +643,7 @@ def _org_ownership(entity: str = "", depth: int = 2, fmt: str = "dot",
                     OPTIONAL {{ ?app rdfs:label ?appLabel }}
                     OPTIONAL {{ ?app ea:domain  ?domain   }}
                     {domain_clause} }}
-        OPTIONAL {{ ?asset a data:DataAsset ;
+        OPTIONAL {{ ?asset a data:Dataset ;
                            data:owner ?owner .
                     OPTIONAL {{ ?asset rdfs:label ?assetLabel }} }}
         {person_filter}

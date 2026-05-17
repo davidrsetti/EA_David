@@ -1,1 +1,35 @@
-".env" 
+# Secrets — never commit
+.env
+*.env
+.env.*
+!.env.example
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+
+# Logs and audit (may contain PII)
+logs/
+*.jsonl
+*.log
+
+# Test reports
+tests/reports/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Generated
+*.pptx

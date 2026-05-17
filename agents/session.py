@@ -1,6 +1,11 @@
 """
 agents/session.py — Conversation session state stored in the NEXUS graph.
 Enables multi-turn contextual queries — coreference resolution, entity focus tracking.
+
+v10 alignment: ConversationSession is modelled as ops:ConversationSession in
+https://nexus.platform/ops# with predicates ops:sessionUserId / ops:sessionUserRole /
+ops:sessionStatus / ops:turnCount / ops:startedAt / ops:lastActive / ops:lastIntent /
+ops:entityFocus / ops:sessionUserRef.
 """
 from __future__ import annotations
 import logging
@@ -9,8 +14,8 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-BASE    = "http://nexus.enterprise.com/"
-SESSION = f"{BASE}session#"
+OPS_NS   = "https://nexus.platform/ops#"
+HR_NS    = "https://ontology.ea.example.org/hr#"
 
 
 def create_session(user_id: str, user_role: str) -> str:
@@ -19,25 +24,24 @@ def create_session(user_id: str, user_role: str) -> str:
     db = get_stardog()
 
     session_id  = f"session_{uuid.uuid4().hex[:16]}"
-    session_uri = f"{SESSION}{session_id}"
+    session_uri = f"{OPS_NS}{session_id}"
     now         = datetime.now(timezone.utc).isoformat()
-    user_uri    = f"{BASE}hr#{user_id.replace(' ', '_')}"
+    user_uri    = f"{HR_NS}{user_id.replace(' ', '_')}"
 
     sparql = f"""
-PREFIX session: <{SESSION}>
-PREFIX nexus:   <{BASE}nexus#>
-PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
+PREFIX ops:  <{OPS_NS}>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
 
 INSERT DATA {{
-    <{session_uri}> a session:ConversationSession ;
-        rdfs:label       "Session {session_id}" ;
-        session:userId   "{user_id}" ;
-        session:userRole "{user_role}" ;
-        session:userRef  <{user_uri}> ;
-        session:startedAt "{now}"^^xsd:dateTime ;
-        session:turnCount 0 ;
-        session:status   "Active" .
+    <{session_uri}> a ops:ConversationSession ;
+        rdfs:label          "Session {session_id}" ;
+        ops:sessionUserId   "{user_id}" ;
+        ops:sessionUserRole "{user_role}" ;
+        ops:sessionUserRef  <{user_uri}> ;
+        ops:startedAt       "{now}"^^xsd:dateTime ;
+        ops:turnCount       0 ;
+        ops:sessionStatus   "Active" .
 }}
 """
     try:
@@ -60,31 +64,31 @@ def update_session(
     from nexus.core.stardog_client import get_stardog
     db = get_stardog()
 
-    session_uri = f"{SESSION}{session_id}"
+    session_uri = f"{OPS_NS}{session_id}"
     now         = datetime.now(timezone.utc).isoformat()
     focus_triples = "\n    ".join(
-        f'<{session_uri}> session:entityFocus <{e}> .' for e in entity_focus
+        f'<{session_uri}> ops:entityFocus <{e}> .' for e in entity_focus
     ) if entity_focus else ""
 
     sparql = f"""
-PREFIX session: <{SESSION}>
-PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
+PREFIX ops: <{OPS_NS}>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
-DELETE {{ <{session_uri}> session:lastIntent  ?i ;
-                          session:turnCount   ?t ;
-                          session:lastActive  ?a ;
-                          session:entityFocus ?f }}
+DELETE {{ <{session_uri}> ops:lastIntent  ?i ;
+                          ops:turnCount   ?t ;
+                          ops:lastActive  ?a ;
+                          ops:entityFocus ?f }}
 INSERT {{
-    <{session_uri}> session:lastIntent  "{_esc(intent)}" ;
-                    session:turnCount   {turn_count} ;
-                    session:lastActive  "{now}"^^xsd:dateTime .
+    <{session_uri}> ops:lastIntent  "{_esc(intent)}" ;
+                    ops:turnCount   {turn_count} ;
+                    ops:lastActive  "{now}"^^xsd:dateTime .
     {focus_triples}
 }}
 WHERE {{
-    OPTIONAL {{ <{session_uri}> session:lastIntent  ?i }}
-    OPTIONAL {{ <{session_uri}> session:turnCount   ?t }}
-    OPTIONAL {{ <{session_uri}> session:lastActive  ?a }}
-    OPTIONAL {{ <{session_uri}> session:entityFocus ?f }}
+    OPTIONAL {{ <{session_uri}> ops:lastIntent  ?i }}
+    OPTIONAL {{ <{session_uri}> ops:turnCount   ?t }}
+    OPTIONAL {{ <{session_uri}> ops:lastActive  ?a }}
+    OPTIONAL {{ <{session_uri}> ops:entityFocus ?f }}
 }}
 """
     try:
@@ -98,13 +102,16 @@ def get_session_context(session_id: str) -> dict:
     from nexus.core.stardog_client import get_stardog
     db = get_stardog()
 
-    session_uri = f"{SESSION}{session_id}"
+    session_uri = f"{OPS_NS}{session_id}"
     q = f"""
+    PREFIX ops:  <{OPS_NS}>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
     SELECT ?lastIntent ?turnCount ?entityFocus ?focusLabel WHERE {{
-        <{session_uri}> session:userId ?userId .
-        OPTIONAL {{ <{session_uri}> session:lastIntent  ?lastIntent  }}
-        OPTIONAL {{ <{session_uri}> session:turnCount   ?turnCount   }}
-        OPTIONAL {{ <{session_uri}> session:entityFocus ?entityFocus .
+        <{session_uri}> ops:sessionUserId ?userId .
+        OPTIONAL {{ <{session_uri}> ops:lastIntent  ?lastIntent  }}
+        OPTIONAL {{ <{session_uri}> ops:turnCount   ?turnCount   }}
+        OPTIONAL {{ <{session_uri}> ops:entityFocus ?entityFocus .
                     ?entityFocus rdfs:label ?focusLabel }}
     }}
     """

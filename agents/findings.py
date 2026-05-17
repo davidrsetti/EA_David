@@ -51,13 +51,13 @@ PREFIX xsd:   <http://www.w3.org/2001/XMLSchema#>
 
 INSERT DATA {{
     <{uri}> a nexus:AgentFinding ;
-        rdfs:label          "{_esc(finding.label)}" ;
-        nexus:foundBy       <{agent_uri}> ;
-        nexus:foundAt       "{now}"^^xsd:dateTime ;
-        nexus:affects       <{finding.asset_uri}> ;
-        nexus:severity      "{finding.severity}" ;
-        nexus:findingStatus "{finding.status}" ;
-        nexus:description   "{_esc(finding.description)}" .
+        rdfs:label                "{_esc(finding.label)}" ;
+        nexus:foundBy             <{agent_uri}> ;
+        nexus:foundAt             "{now}"^^xsd:dateTime ;
+        nexus:affects             <{finding.asset_uri}> ;
+        nexus:severity            "{finding.severity}" ;
+        nexus:findingStatus       "{finding.status}" ;
+        nexus:findingDescription  "{_esc(finding.description)}" .
 }}
 """
     try:

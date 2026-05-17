@@ -314,13 +314,13 @@ async def graph_health(user: AuthenticatedUser = Depends(require_role("admin", "
         "total_triples":       "SELECT (COUNT(*) AS ?count) WHERE { ?s ?p ?o }",
         "total_people":        "SELECT (COUNT(*) AS ?count) WHERE { ?s a hr:User }",
         "total_apps":          "SELECT (COUNT(*) AS ?count) WHERE { ?s a app:Application }",
-        "total_data_assets":   "SELECT (COUNT(*) AS ?count) WHERE { ?s a data:DataAsset }",
+        "total_data_assets":   "SELECT (COUNT(*) AS ?count) WHERE { ?s a data:Dataset }",
         "total_agents":        "SELECT (COUNT(*) AS ?count) WHERE { ?s a ai:Agent }",
         "total_capabilities":  "SELECT (COUNT(*) AS ?count) WHERE { ?s a ea:BusinessCapabilityL3 }",
         "open_findings":       "SELECT (COUNT(*) AS ?count) WHERE { ?s a nexus:AgentFinding ; nexus:findingStatus 'Open' }",
         "orphaned_apps":       "SELECT (COUNT(*) AS ?count) WHERE { ?s a app:Application . FILTER NOT EXISTS { ?s app:techOwner ?o } }",
-        "unclassified_assets": "SELECT (COUNT(*) AS ?count) WHERE { ?s a data:DataAsset . FILTER NOT EXISTS { ?s data:classification ?c } }",
-        "capability_gaps":     "SELECT (COUNT(*) AS ?count) WHERE { ?s a ea:BusinessCapabilityL3 . FILTER NOT EXISTS { ?a ea:enablesBusinessCapabilityL3 ?s } }",
+        "unclassified_assets": "SELECT (COUNT(*) AS ?count) WHERE { ?s a data:Dataset . FILTER NOT EXISTS { ?s ea:dataProtectedByClassification ?c } }",
+        "capability_gaps":     "SELECT (COUNT(*) AS ?count) WHERE { ?s a ea:BusinessCapabilityL3 . FILTER NOT EXISTS { ?a ea:enablesBusinessCapability ?s } }",
     }
     for key, q in checks.items():
         try:

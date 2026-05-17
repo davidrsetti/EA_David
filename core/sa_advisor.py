@@ -156,7 +156,7 @@ def run_sa_advisor(focus_domain: str = "", user_role: str = "analyst") -> SAAdvi
     SELECT DISTINCT ?app ?appLabel ?platform ?lifecycle ?domain WHERE {{
         ?app a app:Application .
         OPTIONAL {{ ?app rdfs:label    ?appLabel  }}
-        OPTIONAL {{ ?app app:platform  ?platform  }}
+        OPTIONAL {{ ?app app:runsOnPlatform  ?platform  }}
         OPTIONAL {{ ?app app:lifecycle ?lifecycle }}
         OPTIONAL {{ ?app ea:domain     ?domain    }}
         FILTER NOT EXISTS {{ ?app app:techOwner ?owner }}
@@ -183,7 +183,7 @@ def run_sa_advisor(focus_domain: str = "", user_role: str = "analyst") -> SAAdvi
         ?app a app:Application .
         OPTIONAL {{ ?app rdfs:label    ?appLabel   }}
         OPTIONAL {{ ?app app:lifecycle ?lifecycle  }}
-        OPTIONAL {{ ?app app:platform  ?platform   }}
+        OPTIONAL {{ ?app app:runsOnPlatform  ?platform   }}
         OPTIONAL {{ ?app ea:domain     ?domain     }}
         OPTIONAL {{ ?app app:techOwner ?owner .
                     ?owner rdfs:label  ?ownerLabel }}
@@ -216,7 +216,8 @@ def run_sa_advisor(focus_domain: str = "", user_role: str = "analyst") -> SAAdvi
         ?app a app:Application .
         OPTIONAL {{ ?app rdfs:label ?appLabel }}
         ?app (app:processes | app:stores | app:accesses) ?asset .
-        ?asset data:classification ?classification .
+        ?asset ea:dataProtectedByClassification ?dc .
+        ?dc sec:classificationLevel ?classification .
         FILTER(?classification IN ("Restricted", "Confidential"))
         OPTIONAL {{
             ?finding a nexus:AgentFinding ;

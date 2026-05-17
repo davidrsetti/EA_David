@@ -40,6 +40,7 @@ from nexus.core.sa_advisor_v2 import (
     search_integrations,
     search_platforms,
 )
+from nexus.ui.icons import mat
 
 
 def _ensure_state(st):
@@ -149,7 +150,7 @@ def render_business_step(st, state: GuidedSAState):
         st.caption(f"No L3 capabilities found for '{selected_domain}' in the graph.")
 
     # ── Graph diagnostics — shows what's actually in Stardog for this domain
-    with st.expander("🔍 Graph diagnostics (debug)", expanded=False):
+    with st.expander(f"{mat('search')}  Graph diagnostics (debug)", expanded=False):
         try:
             from nexus.core.sa_advisor_v2 import _resolve_domain_iri, _run_rows, EA_BUSINESS_DOMAIN_IRI, RDFS
             domain_iri = _resolve_domain_iri(selected_domain)
@@ -379,7 +380,7 @@ def render_recommendation_step(st, state: GuidedSAState, user_role: str):
 
 def _render_adr_panel(st, state: GuidedSAState, out, rec) -> None:
     """Full MADR generation + graph storage panel inside the Prompt/ADR tab."""
-    st.markdown("#### 📄 Generate Architecture Decision Record (MADR)")
+    st.markdown(f"#### {mat('description')}  Generate Architecture Decision Record (MADR)")
     st.markdown(
         "Generates a full [MADR-format](https://adr.github.io/madr/) document from the guided SA "
         "interview and stores it in the knowledge graph as a queryable resource."
@@ -409,7 +410,7 @@ def _render_adr_panel(st, state: GuidedSAState, out, rec) -> None:
         key="adr_rationale",
     )
 
-    gen_btn = st.button("📄 Generate & Store ADR", type="primary", key="adr_generate_btn")
+    gen_btn = st.button(f"{mat('description')}  Generate & Store ADR", type="primary", key="adr_generate_btn")
 
     if gen_btn:
         with st.spinner("Generating MADR and storing in knowledge graph…"):
@@ -443,7 +444,7 @@ def _render_adr_panel(st, state: GuidedSAState, out, rec) -> None:
         st.markdown("**Generated ADR:**")
         st.markdown(adr_data["madr"])
         st.download_button(
-            label="⬇ Download MADR (.md)",
+            label=f"{mat('download')}  Download MADR (.md)",
             data=adr_data["madr"],
             file_name=f"ADR-{bc.domain or 'nexus'}.md",
             mime="text/markdown",
@@ -452,7 +453,7 @@ def _render_adr_panel(st, state: GuidedSAState, out, rec) -> None:
         st.caption(f"ADR URI: `{adr_data['uri']}`")
 
         # Show existing ADRs for this domain
-        with st.expander("📚 Existing ADRs for this domain", expanded=False):
+        with st.expander(f"{mat('library_books')}  Existing ADRs for this domain", expanded=False):
             try:
                 from nexus.core.sa_advisor_v2 import list_adrs_from_graph
                 adrs = list_adrs_from_graph(domain=bc.domain)

@@ -10,6 +10,12 @@ all in the same queryable knowledge graph.
 from __future__ import annotations
 import streamlit as st
 
+from nexus.ui.theme import (
+    ORANGE, ORANGE_DARK, ORANGE_LIGHT, NEAR_BLACK, WHITE,
+    GREY_TEXT, GREY_DARK, GREY_LINE, GREY_MUTED, SURFACE_2,
+)
+from nexus.ui.icons import icon, mat
+
 
 _CHANGE_TYPES = [
     "Decommission",
@@ -21,32 +27,35 @@ _CHANGE_TYPES = [
 ]
 
 _RISK_COLOURS = {
-    "Critical": "#ef4444",
-    "High":     "#f97316",
-    "Medium":   "#f59e0b",
-    "Low":      "#10b981",
+    "Critical": NEAR_BLACK,
+    "High":     ORANGE_DARK,
+    "Medium":   ORANGE,
+    "Low":      GREY_TEXT,
 }
 
 _RING_EXAMPLE = [
-    ("⚠️",  "Direct Dependents",              "#ef4444"),
-    ("🔶",  "Indirect Dependents (depth 2)",   "#f97316"),
-    ("🕳",  "Capability Gaps",                 "#8b5cf6"),
-    ("🛡",  "Data Assets at Risk",             "#dc2626"),
-    ("🤖",  "AI Agents Affected",              "#7c3aed"),
-    ("👤",  "People to Notify",                "#0891b2"),
+    (mat("warning"),    "Direct Dependents",              NEAR_BLACK),
+    (mat("share"),      "Indirect Dependents (depth 2)",  ORANGE),
+    (mat("crop_free"),  "Capability Gaps",                ORANGE_DARK),
+    (mat("shield"),     "Data Assets at Risk",            NEAR_BLACK),
+    (mat("smart_toy"),  "AI Agents Affected",             GREY_DARK),
+    (mat("group"),      "People to Notify",               GREY_TEXT),
 ]
 
 
 def render_impact_tab(connected: bool, user_role: str) -> None:
     """Render the Change Impact Radar tab."""
     st.markdown(
-        """
-        <div style="border-left:4px solid #F36633;padding-left:1rem;margin-bottom:1.5rem">
-          <h2 style="margin:0;font-size:1.4rem;color:#1A1A1A">💥 Change Impact Radar</h2>
-          <p style="margin:.25rem 0 0;color:#777;font-size:.9rem">
-            Full blast radius analysis: 6 parallel graph traversals compute the impact of any
-            proposed change across dependents, capabilities, data assets, AI agents, and people.
-          </p>
+        f"""
+        <div style="border-left:4px solid {ORANGE};padding-left:1rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:.8rem">
+          <span>{icon("zap", size=26, color=ORANGE)}</span>
+          <div>
+            <h2 style="margin:0;font-size:1.4rem;color:{NEAR_BLACK}">Change Impact Radar</h2>
+            <p style="margin:.25rem 0 0;color:{GREY_TEXT};font-size:.9rem">
+              Full blast radius analysis: 6 parallel graph traversals compute the impact of any
+              proposed change across dependents, capabilities, data assets, AI agents, and people.
+            </p>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -74,7 +83,7 @@ def render_impact_tab(connected: bool, user_role: str) -> None:
     with ctrl3:
         st.markdown("<br>", unsafe_allow_html=True)
         analyse_btn = st.button(
-            "🔍 Analyse Impact",
+            f"{mat('search')}  Analyse Impact",
             key="impact_run",
             type="primary",
             disabled=not entity,
@@ -116,23 +125,23 @@ def render_impact_tab(connected: bool, user_role: str) -> None:
 
 def _render_risk_banner(result) -> None:
     """Headline risk level and total affected count."""
-    rc = _RISK_COLOURS.get(result.risk_level, "#888")
+    rc = _RISK_COLOURS.get(result.risk_level, GREY_TEXT)
     st.markdown(
         f"""
-        <div style="background:#fff;border:1px solid #D8D8D8;border-radius:12px;
+        <div style="background:{WHITE};border:1px solid {GREY_LINE};border-radius:12px;
                     border-left:6px solid {rc};padding:1rem 1.5rem;
                     display:flex;justify-content:space-between;align-items:center">
           <div>
-            <div style="font-size:1.1rem;font-weight:700;color:#1A1A1A">
+            <div style="font-size:1.1rem;font-weight:700;color:{NEAR_BLACK}">
               {result.change_type}: <em>{result.entity}</em>
             </div>
-            <div style="font-size:.85rem;color:#777;margin-top:.2rem">
+            <div style="font-size:.85rem;color:{GREY_TEXT};margin-top:.2rem">
               {result.total_affected} entities affected across {sum(1 for r in result.rings if r.count>0)} impact categories
             </div>
           </div>
           <div style="text-align:right">
             <div style="font-size:1.4rem;font-weight:700;color:{rc}">{result.risk_level}</div>
-            <div style="font-size:.7rem;color:#777;text-transform:uppercase">Risk Level</div>
+            <div style="font-size:.7rem;color:{GREY_TEXT};text-transform:uppercase">Risk Level</div>
           </div>
         </div>
         """,
@@ -148,33 +157,37 @@ def _render_impact_rings(result) -> None:
     for i, ring in enumerate(result.rings):
         with cols[i % 3]:
             empty = ring.count == 0
-            bg = "#f0fdf4" if empty else "#fff"
-            border = ring.colour if not empty else "#10b981"
-            count_colour = ring.colour if not empty else "#10b981"
+            bg = SURFACE_2 if empty else WHITE
+            border = GREY_LINE if empty else ring.colour
+            count_colour = GREY_MUTED if empty else ring.colour
             entity_list = ""
             if ring.entities:
                 items = ring.entities[:8]
                 entity_list = "".join(
-                    f"<div style='font-size:.78rem;color:#444;padding:.1rem 0;"
-                    f"border-bottom:1px solid #f0f0f0'>{e}</div>"
+                    f"<div style='font-size:.78rem;color:{GREY_DARK};padding:.1rem 0;"
+                    f"border-bottom:1px solid {SURFACE_2}'>{e}</div>"
                     for e in items
                 )
                 if ring.count > 8:
                     entity_list += (
-                        f"<div style='font-size:.75rem;color:#999;padding:.2rem 0'>"
+                        f"<div style='font-size:.75rem;color:{GREY_MUTED};padding:.2rem 0'>"
                         f"+{ring.count - 8} more…</div>"
                     )
 
+            empty_caption = (
+                f"<em style='font-size:.78rem;color:{GREY_MUTED}'>No impact detected</em>"
+                if empty else entity_list
+            )
             st.markdown(
                 f"""
                 <div style="background:{bg};border:1px solid {border};border-radius:8px;
                             border-top:4px solid {border};padding:1rem;
                             margin-bottom:.75rem;min-height:140px">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
-                    <div style="font-size:.8rem;font-weight:600;color:#444">{ring.icon} {ring.label}</div>
+                    <div style="font-size:.8rem;font-weight:600;color:{GREY_DARK}">{ring.icon} {ring.label}</div>
                     <div style="font-size:1.4rem;font-weight:700;color:{count_colour}">{ring.count}</div>
                   </div>
-                  {"<em style='font-size:.78rem;color:#10b981'>No impact detected</em>" if empty else entity_list}
+                  {empty_caption}
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -187,8 +200,8 @@ def _render_narrative(result) -> None:
         return
     st.markdown("### Impact Summary")
     st.markdown(
-        f"""<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;
-                       padding:1rem 1.25rem;font-size:.9rem;line-height:1.6;color:#1A1A1A">
+        f"""<div style="background:{WHITE};border:1px solid {GREY_LINE};border-left:4px solid {ORANGE};border-radius:8px;
+                       padding:1rem 1.25rem;font-size:.9rem;line-height:1.6;color:{NEAR_BLACK}">
           {result.narrative}
         </div>""",
         unsafe_allow_html=True,
@@ -202,10 +215,10 @@ def _render_mitigations(result) -> None:
     st.markdown("### Mitigation Checklist")
     for i, step in enumerate(result.mitigations, 1):
         st.markdown(
-            f"""<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;
+            f"""<div style="background:{WHITE};border:1px solid {GREY_LINE};border-radius:6px;
                            padding:.6rem 1rem;margin-bottom:.4rem;
-                           display:flex;align-items:flex-start;gap:.75rem;font-size:.875rem">
-              <span style="color:#F36633;font-weight:700;min-width:1.5rem">{i}.</span>
+                           display:flex;align-items:flex-start;gap:.75rem;font-size:.875rem;color:{NEAR_BLACK}">
+              <span style="color:{ORANGE};font-weight:700;min-width:1.5rem">{i}.</span>
               <span>{step}</span>
             </div>""",
             unsafe_allow_html=True,
@@ -221,13 +234,13 @@ def _render_legend() -> None:
         "the full blast radius:"
     )
     cols = st.columns(3)
-    for i, (icon, label, colour) in enumerate(_RING_EXAMPLE):
+    for i, (ring_icon, label, colour) in enumerate(_RING_EXAMPLE):
         with cols[i % 3]:
             st.markdown(
-                f"""<div style="background:#fff;border:1px solid {colour};border-radius:8px;
+                f"""<div style="background:{WHITE};border:1px solid {GREY_LINE};border-radius:8px;
                                border-left:4px solid {colour};padding:.6rem 1rem;
-                               margin-bottom:.5rem;font-size:.85rem">
-                  <strong>{icon} {label}</strong>
+                               margin-bottom:.5rem;font-size:.85rem;color:{NEAR_BLACK}">
+                  <strong>{ring_icon} {label}</strong>
                 </div>""",
                 unsafe_allow_html=True,
             )

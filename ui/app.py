@@ -11,174 +11,33 @@ load_dotenv()
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 logging.basicConfig(level=logging.WARNING)
 
-st.set_page_config(page_title="NEXUS", page_icon="🔮", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="NEXUS", page_icon="◆", layout="wide", initial_sidebar_state="expanded")
 
-# ── GSK Color Palette — Light / White / Gray ──────────────────────────
-# Primary:    GSK Orange  #F36633
-# Background: White       #FFFFFF / #F7F7F7
-# Cards:      Light gray  #F2F2F2 / #EBEBEB
-# Borders:    Mid gray    #D8D8D8
-# Text:       Dark gray   #1A1A1A / #444444 / #777777
-CSS = """
+from nexus.ui.theme import (
+    inject_css, ORANGE, ORANGE_DARK, ORANGE_LIGHT, WHITE, NEAR_BLACK,
+    GREY_TEXT, GREY_MUTED, GREY_LINE, GREY_DARK, SURFACE_2,
+)
+from nexus.ui.icons import icon, mat, TAB_LABELS
+
+inject_css()
+
+# SA Advisor card-specific styles (depth/intensity of the orange accent
+# encodes ArchiMate layer; the chrome stays in the strict palette).
+st.markdown(f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-
-/* ── Force light color scheme — Mac fix ── */
-html,body{color-scheme:light!important;background:#F7F7F7!important;color:#1A1A1A!important;}
-html,body,[class*="css"]{font-family:'DM Sans',sans-serif;}
-code,.stCode,pre{font-family:'DM Mono',monospace;}
-
-/* ── App background & base text ── */
-.stApp{background:#F7F7F7!important;color:#1A1A1A!important;}
-[data-testid="stAppViewContainer"]{background:#F7F7F7!important;color:#1A1A1A!important;}
-[data-testid="stMain"]{background:#F7F7F7!important;}
-.block-container{background:#F7F7F7!important;color:#1A1A1A!important;}
-section[data-testid="stSidebar"]{background:#FFFFFF!important;border-right:1px solid #D8D8D8!important;color:#1A1A1A!important;}
-section[data-testid="stSidebar"] *{color:#1A1A1A!important;}
-section[data-testid="stSidebar"] .stCaption,
-section[data-testid="stSidebar"] [data-testid="stCaptionContainer"]{color:#888888!important;}
-
-/* ── All markdown / text elements ── */
-.stMarkdown{color:#1A1A1A!important;}
-[data-testid="stMarkdownContainer"]{color:#1A1A1A!important;}
-[data-testid="stMarkdownContainer"] p,
-[data-testid="stMarkdownContainer"] li,
-[data-testid="stMarkdownContainer"] h1,
-[data-testid="stMarkdownContainer"] h2,
-[data-testid="stMarkdownContainer"] h3,
-[data-testid="stMarkdownContainer"] h4,
-[data-testid="stMarkdownContainer"] strong,
-[data-testid="stMarkdownContainer"] em{color:#1A1A1A!important;}
-[data-testid="stText"]{color:#1A1A1A!important;}
-p{color:#1A1A1A;}
-
-/* ── Header ── */
-.nexus-header{
-  background:linear-gradient(135deg,#FFFFFF 0%,#F2F2F2 60%,#FFFFFF 100%);
-  border:1px solid #D8D8D8;
-  border-left:4px solid #F36633;
-  border-radius:10px;
-  padding:1.4rem 2rem;
-  margin-bottom:1.2rem;
-  position:relative;
-  overflow:hidden;
-}
-.nexus-header::before{
-  content:"";position:absolute;inset:0;
-  background:radial-gradient(ellipse at 80% 50%,rgba(243,102,51,.05) 0%,transparent 65%);
-  pointer-events:none;
-}
-.nexus-title{font-size:1.7rem;font-weight:700;color:#1A1A1A!important;margin:0;line-height:1.2;letter-spacing:-0.02em;}
-.nexus-title span{color:#F36633!important;}
-.nexus-sub{color:#555555!important;font-size:.82rem;margin:.3rem 0 0;font-weight:400;}
-
-/* ── Plan card ── */
-.plan-card{background:#FFFFFF;border:1px solid #D8D8D8;border-top:3px solid #F36633;border-radius:8px;padding:1rem 1.2rem;margin:.6rem 0;}
-.plan-label{font-size:.72rem;font-weight:600;letter-spacing:.08em;color:#F36633!important;text-transform:uppercase;margin-bottom:.3rem;}
-.plan-value{font-size:.85rem;color:#333333!important;}
-.plan-tag{display:inline-block;background:#F2F2F2;border:1px solid #D8D8D8;border-radius:4px;padding:.15rem .5rem;font-size:.75rem;color:#444444!important;margin:.15rem .15rem 0 0;font-family:'DM Mono',monospace;}
-.plan-warn{background:#FFF5F2;border:1px solid #F9B99E;border-radius:6px;padding:.6rem .8rem;margin-top:.5rem;font-size:.8rem;color:#C4501F!important;}
-
-/* ── Risk badges ── */
-.risk-low{background:#F0FDF4;color:#166534!important;border:1px solid #BBF7D0;border-radius:4px;padding:.1rem .5rem;font-size:.72rem;font-weight:600;}
-.risk-medium{background:#FFFBEB;color:#92400E!important;border:1px solid #FDE68A;border-radius:4px;padding:.1rem .5rem;font-size:.72rem;font-weight:600;}
-.risk-high{background:#FFF1F0;color:#991B1B!important;border:1px solid #FECACA;border-radius:4px;padding:.1rem .5rem;font-size:.72rem;font-weight:600;}
-.risk-blocked{background:#FAF5FF;color:#6B21A8!important;border:1px solid #E9D5FF;border-radius:4px;padding:.1rem .5rem;font-size:.72rem;font-weight:600;}
-
-/* ── Confidence bar ── */
-.confidence-bar{height:4px;border-radius:2px;background:linear-gradient(90deg,#F36633,#FF8A5C);margin-top:4px;}
-
-/* ── Expander ── */
-details summary{color:#555555!important;font-size:.8rem!important;}
-details[open] summary{color:#F36633!important;}
-[data-testid="stExpander"]{background:#FFFFFF!important;border:1px solid #D8D8D8!important;}
-[data-testid="stExpanderDetails"]{background:#FFFFFF!important;color:#1A1A1A!important;}
-[data-testid="stExpanderDetails"] *{color:#1A1A1A;}
-
-/* ── Chat input ── */
-.stChatInput>div{background:#FFFFFF!important;border-color:#D8D8D8!important;}
-.stChatInput textarea{color:#1A1A1A!important;background:#FFFFFF!important;}
-.stChatInput textarea::placeholder{color:#999999!important;}
-[data-testid="stChatMessage"]{background:#FFFFFF!important;border:1px solid #EBEBEB!important;border-radius:8px!important;}
-[data-testid="stChatMessageContent"]{color:#1A1A1A!important;}
-[data-testid="stChatMessageContent"] p{color:#1A1A1A!important;}
-[data-testid="stChatMessageContent"] *{color:#1A1A1A;}
-
-/* ── Alert / info / warning / error boxes ── */
-[data-testid="stAlert"]{color:#1A1A1A!important;}
-[data-testid="stAlert"] p{color:#1A1A1A!important;}
-.stSuccess{background:#F0FDF4!important;}
-.stWarning{background:#FFFBEB!important;}
-.stError{background:#FFF1F0!important;}
-.stInfo{background:#F0F7FF!important;}
-
-/* ── Spinner ── */
-[data-testid="stSpinner"] p{color:#555555!important;}
-.stSpinner>div>div{border-top-color:#F36633!important;}
-
-/* ── Buttons ── */
-.stButton>button{background:#FFFFFF!important;border:1px solid #D8D8D8!important;color:#333333!important;border-radius:6px!important;font-size:.82rem!important;transition:all .15s!important;}
-.stButton>button:hover{background:#F36633!important;border-color:#F36633!important;color:#FFFFFF!important;}
-
-/* ── st.tabs override ── */
-.stTabs [data-baseweb="tab-list"]{background:#FFFFFF!important;border-bottom:2px solid #D8D8D8!important;gap:0!important;}
-.stTabs [data-baseweb="tab"]{background:#FFFFFF!important;color:#555555!important;border:none!important;border-bottom:2px solid transparent!important;border-radius:0!important;padding:.65rem 1.4rem!important;font-size:.82rem!important;font-weight:600!important;letter-spacing:.04em!important;text-transform:uppercase!important;transition:all .15s!important;margin-bottom:-2px!important;}
-.stTabs [data-baseweb="tab"]:hover{color:#1A1A1A!important;background:#F2F2F2!important;}
-.stTabs [aria-selected="true"]{color:#F36633!important;border-bottom:2px solid #F36633!important;background:#FFFFFF!important;}
-.stTabs [data-baseweb="tab-highlight"]{background:transparent!important;}
-.stTabs [data-baseweb="tab-border"]{background:#D8D8D8!important;}
-[data-testid="stTabsContent"]{background:#F7F7F7!important;color:#1A1A1A!important;}
-
-/* ── Metrics ── */
-[data-testid="stMetricValue"]{color:#F36633!important;font-weight:700!important;}
-[data-testid="stMetricLabel"]{color:#555555!important;}
-[data-testid="stMetricDelta"]{color:#555555!important;}
-
-/* ── Toggle / labels ── */
-.stToggle>label{color:#444444!important;font-size:.82rem!important;}
-.stToggle [data-testid="stWidgetLabel"]{color:#444444!important;}
-.stSelectbox label,.stTextInput label,.stTextArea label{color:#444444!important;font-size:.8rem!important;}
-[data-testid="stWidgetLabel"]{color:#444444!important;}
-[data-testid="stWidgetLabel"] p{color:#444444!important;}
-.stSelectbox>div>div{background:#FFFFFF!important;border-color:#D8D8D8!important;color:#1A1A1A!important;}
-.stTextInput>div>div>input{background:#FFFFFF!important;border-color:#D8D8D8!important;color:#1A1A1A!important;}
-.stTextArea>div>div>textarea{background:#FFFFFF!important;border-color:#D8D8D8!important;color:#1A1A1A!important;}
-[data-baseweb="select"] [data-testid="stMarkdownContainer"] p{color:#1A1A1A!important;}
-[data-baseweb="popover"] li{color:#1A1A1A!important;background:#FFFFFF!important;}
-[data-baseweb="popover"] li:hover{background:#F2F2F2!important;}
-
-/* ── Forms ── */
-[data-testid="stForm"]{background:#FFFFFF!important;border:1px solid #D8D8D8!important;border-radius:8px!important;padding:1rem!important;}
-[data-testid="stForm"] *{color:#1A1A1A;}
-[data-testid="stFormSubmitButton"]>button{background:#F36633!important;border-color:#F36633!important;color:#FFFFFF!important;}
-[data-testid="stFormSubmitButton"]>button:hover{background:#D4541F!important;border-color:#D4541F!important;}
-
-/* ── Misc ── */
-hr{border-color:#D8D8D8!important;}
-[data-testid="stDataFrame"]{border:1px solid #D8D8D8!important;border-radius:6px!important;background:#FFFFFF!important;}
-.stCode>div{background:#F2F2F2!important;border:1px solid #D8D8D8!important;color:#1A1A1A!important;}
-.stCaption,[data-testid="stCaptionContainer"]{color:#888888!important;}
-[data-testid="stCaptionContainer"] p{color:#888888!important;}
-[data-testid="stDivider"]{border-color:#D8D8D8!important;}
-
-/* ── Scrollbar ── */
-::-webkit-scrollbar{width:4px;height:4px;}
-::-webkit-scrollbar-track{background:#F7F7F7;}
-::-webkit-scrollbar-thumb{background:#CCCCCC;border-radius:2px;}
-::-webkit-scrollbar-thumb:hover{background:#F36633;}
-
-/* ── SA Advisor ── */
-.sa-input-box{background:#FFFFFF!important;border:1px solid #D8D8D8!important;border-radius:10px!important;padding:1rem 1.2rem!important;margin-bottom:1rem!important;}
-.sa-section-label{font-size:.72rem!important;font-weight:700!important;letter-spacing:.1em!important;color:#F36633!important;text-transform:uppercase!important;margin-bottom:.5rem!important;}
-.sa-detail-card{background:#FFFFFF!important;border:1px solid #D8D8D8!important;border-left:3px solid #F36633!important;border-radius:8px!important;padding:.8rem 1rem!important;margin-bottom:.6rem!important;}
-.sa-layer-band-Motivation{border-left:4px solid #7C3AED!important;}
-.sa-layer-band-Business{border-left:4px solid #D97706!important;}
-.sa-layer-band-Application{border-left:4px solid #1D4ED8!important;}
-.sa-layer-band-Technology{border-left:4px solid #059669!important;}
-.sa-advisory-section{background:#FFFFFF!important;border:1px solid #D8D8D8!important;border-radius:8px!important;padding:1rem 1.2rem!important;margin-bottom:.8rem!important;}
+.sa-input-box,.sa-advisory-section{{background:{WHITE}!important;border:1px solid {GREY_LINE}!important;border-radius:10px!important;padding:1rem 1.2rem!important;margin-bottom:1rem!important;}}
+.sa-section-label{{font-size:.72rem!important;font-weight:700!important;letter-spacing:.1em!important;color:{ORANGE}!important;text-transform:uppercase!important;margin-bottom:.5rem!important;}}
+.sa-detail-card{{background:{WHITE}!important;border:1px solid {GREY_LINE}!important;border-left:3px solid {ORANGE}!important;border-radius:8px!important;padding:.8rem 1rem!important;margin-bottom:.6rem!important;}}
+.sa-layer-band-Motivation{{border-left:4px solid {NEAR_BLACK}!important;}}
+.sa-layer-band-Business{{border-left:4px solid {ORANGE_DARK}!important;}}
+.sa-layer-band-Application{{border-left:4px solid {ORANGE}!important;}}
+.sa-layer-band-Technology{{border-left:4px solid {GREY_DARK}!important;}}
+::-webkit-scrollbar{{width:4px;height:4px;}}
+::-webkit-scrollbar-track{{background:{SURFACE_2};}}
+::-webkit-scrollbar-thumb{{background:{GREY_LINE};border-radius:2px;}}
+::-webkit-scrollbar-thumb:hover{{background:{ORANGE};}}
 </style>
-"""
-st.markdown(CSS, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # ── Session state ─────────────────────────────────────────────────────
 for k, v in {
@@ -217,11 +76,13 @@ def make_client(endpoint, token, oai_key, db):
 # ── Sidebar ───────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown(
-        '<div style="text-align:center;padding:.5rem 0 1rem">'
-        '<div style="width:40px;height:40px;background:#F36633;border-radius:8px;'
-        'display:flex;align-items:center;justify-content:center;margin:0 auto .6rem;font-size:1.2rem">🔮</div>'
-        '<div style="color:#1A1A1A;font-weight:700;font-size:1rem;margin-top:.2rem">NEXUS</div>'
-        '<div style="color:#777777;font-size:.7rem">Knowledge Graph Platform</div></div>',
+        f'<div style="text-align:center;padding:.5rem 0 1rem">'
+        f'<div style="width:42px;height:42px;background:{NEAR_BLACK};border-radius:10px;'
+        f'display:flex;align-items:center;justify-content:center;margin:0 auto .6rem;color:{ORANGE}">'
+        f'{icon("network", size=22, color=ORANGE)}'
+        f'</div>'
+        f'<div style="color:{NEAR_BLACK};font-weight:700;font-size:1rem;margin-top:.2rem;letter-spacing:.04em">NEXUS</div>'
+        f'<div style="color:{GREY_MUTED};font-size:.7rem">Knowledge Graph Platform</div></div>',
         unsafe_allow_html=True
     )
 
@@ -254,14 +115,14 @@ with st.sidebar:
             st.warning("Endpoint and API key required.")
 
     st.divider()
-    st.markdown('<div style="color:#777777;font-size:.7rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:.4rem">Query Options</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="color:{GREY_MUTED};font-size:.7rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:.4rem">Query Options</div>', unsafe_allow_html=True)
     use_virtual  = st.toggle("Denodo Virtual Graph", value=False)
     show_sparql  = st.toggle("Show SPARQL", value=True)
     show_table   = st.toggle("Show Results Table", value=True)
     show_plan    = st.toggle("Show Query Plan", value=True)
     auto_confirm = st.toggle("Auto-confirm (skip HitL)", value=False)
     st.divider()
-    st.markdown('<div style="color:#777777;font-size:.7rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:.4rem">Identity</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="color:{GREY_MUTED};font-size:.7rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:.4rem">Identity</div>', unsafe_allow_html=True)
     user_role = st.selectbox("Role", ["analyst", "data-steward", "admin", "viewer", "agent"])
     st.session_state["user_role"] = user_role
     user_dept = st.text_input("Department", value="", placeholder="e.g. Finance")
@@ -272,11 +133,11 @@ with st.sidebar:
             from nexus.core.stardog_client import get_stardog
             db = get_stardog()
             checks = {
-                "People":       "SELECT (COUNT(*) AS ?c) WHERE { ?s a hr:Person }",
+                "People":       "SELECT (COUNT(*) AS ?c) WHERE { ?s a hr:User }",
                 "Apps":         "SELECT (COUNT(*) AS ?c) WHERE { ?s a app:Application }",
-                "Data Assets":  "SELECT (COUNT(*) AS ?c) WHERE { ?s a data:DataAsset }",
-                "AI Agents":    "SELECT (COUNT(*) AS ?c) WHERE { ?s a agent:AIAgent }",
-                "Open Findings":"SELECT (COUNT(*) AS ?c) WHERE { ?s a agent:AgentFinding ; agent:status 'Open' }",
+                "Data Assets":  "SELECT (COUNT(*) AS ?c) WHERE { ?s a data:Dataset }",
+                "AI Agents":    "SELECT (COUNT(*) AS ?c) WHERE { ?s a ai:Agent }",
+                "Open Findings":"SELECT (COUNT(*) AS ?c) WHERE { ?s a ops:AgentFinding ; ops:findingStatus 'Open' }",
             }
             for lbl, q in checks.items():
                 try:
@@ -291,35 +152,32 @@ with st.sidebar:
     st.caption("NEXUS v1.0 · Stardog + OpenAI · GSK")
 
 # ── Header ────────────────────────────────────────────────────────────
-dot       = '<span style="color:#22c55e">●</span>' if st.session_state.connected else '<span style="color:#ef4444">●</span>'
-status_txt = "Connected" if st.session_state.connected else "Disconnected"
+status_on  = st.session_state.connected
+dot_class  = "on" if status_on else "off"
+status_txt = "Connected" if status_on else "Disconnected"
 sid        = st.session_state.session_id[:12] if st.session_state.session_id else "none"
 
 st.markdown(
-    '<div class="nexus-header">'
-    '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem">'
-    '<div>'
-    '<div class="nexus-title">NEXUS <span>·</span> Enterprise Knowledge Graph</div>'
-    '<div class="nexus-sub">Conversational AI · Agent Grounding · Orchestration Intelligence · Semantic Governance · SA Advisor</div>'
-    '</div>'
-    f'<div style="text-align:right;font-size:.78rem;color:#777777">{dot} {status_txt} &nbsp;·&nbsp; {user_role.title()} &nbsp;·&nbsp; Session {sid}</div>'
-    '</div></div>',
+    f'<div class="nexus-header">'
+    f'<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem">'
+    f'<div>'
+    f'<div class="nexus-title">NEXUS <span>·</span> Enterprise Knowledge Graph</div>'
+    f'<div class="nexus-sub">Conversational AI · Agent Grounding · Orchestration Intelligence · Semantic Governance · SA Advisor</div>'
+    f'</div>'
+    f'<div class="nexus-status">'
+    f'<span class="nexus-status-dot {dot_class}"></span>'
+    f'<span>{status_txt}</span>'
+    f'<span style="color:{GREY_LINE};margin:0 .35rem">·</span>'
+    f'<span>{user_role.title()}</span>'
+    f'<span style="color:{GREY_LINE};margin:0 .35rem">·</span>'
+    f'<span>Session <code style="background:{SURFACE_2};padding:.05rem .35rem;border-radius:3px">{sid}</code></span>'
+    f'</div>'
+    f'</div></div>',
     unsafe_allow_html=True
 )
 
 # ── Main tabs ─────────────────────────────────────────────────────────
-tab_chat, tab_guided_sa, tab_sa, tab_data, tab_portfolio, tab_sa_health, tab_diagram, tab_impact, tab_ai_gov, tab_audit = st.tabs([
-    "💬  Knowledge Graph Chat",
-    "🧭  Guided SA Advisor",
-    "🏛  Freeform SA Diagram",
-    "📊  Data Query",
-    "📊  Portfolio Intelligence",
-    "🏥  SA Health",
-    "🗺️  Architecture Diagrams",
-    "💥  Change Impact",
-    "🤖  AI Governance",
-    "🔍  Audit",
-])
+tab_chat, tab_guided_sa, tab_sa, tab_data, tab_portfolio, tab_sa_health, tab_diagram, tab_impact, tab_ai_gov, tab_audit = st.tabs(TAB_LABELS)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -351,7 +209,7 @@ with tab_chat:
     # ── Chat history ───────────────────────────────────────────────
     for msg in st.session_state.messages:
         role   = msg["role"]
-        avatar = "🔮" if role == "assistant" else "👤"
+        avatar = ":material/hub:" if role == "assistant" else ":material/person:"
         with st.chat_message(role, avatar=avatar):
             st.markdown(msg["content"])
             if show_sparql and msg.get("sparql"):
@@ -367,7 +225,7 @@ with tab_chat:
         risk       = getattr(plan, "risk_level", "low")
         risk_class = {"low": "risk-low", "medium": "risk-medium", "high": "risk-high", "blocked": "risk-blocked"}.get(risk, "risk-low")
         conf       = int(getattr(plan, "confidence", 1.0) * 100)
-        conf_col   = "#22c55e" if conf > 80 else "#fcd34d" if conf > 50 else "#ef4444"
+        conf_col   = NEAR_BLACK if conf > 80 else GREY_DARK if conf > 50 else ORANGE_DARK
 
         def tags(items):
             return "".join(f'<span class="plan-tag">{i}</span>' for i in items) or "<span style='color:#555'>none</span>"
@@ -412,7 +270,7 @@ with tab_chat:
         from nexus.config.settings      import settings as _s
 
         t0 = time.monotonic()
-        with st.chat_message("assistant", avatar="🔮"):
+        with st.chat_message("assistant", avatar=":material/hub:"):
             status = st.empty()
 
             status.markdown("Responsible AI check...")
@@ -508,7 +366,7 @@ with tab_chat:
         if show_plan:
             render_plan(plan)
         cqs = getattr(plan, "clarifying_questions", [])
-        with st.chat_message("assistant", avatar="🔮"):
+        with st.chat_message("assistant", avatar=":material/hub:"):
             if cqs and not getattr(plan, "ready_to_execute", True) and not auto_confirm:
                 st.markdown("Please clarify before I run this query:")
                 answers = []
@@ -552,14 +410,14 @@ with tab_chat:
 
     if question and not st.session_state.pending_plan:
         st.session_state.messages.append({"role": "user", "content": question})
-        with st.chat_message("user", avatar="👤"):
+        with st.chat_message("user", avatar=":material/person:"):
             st.markdown(question)
 
         if not st.session_state.connected:
-            with st.chat_message("assistant", avatar="🔮"):
+            with st.chat_message("assistant", avatar=":material/hub:"):
                 st.warning("Connect to NEXUS via the sidebar first.")
         else:
-            with st.chat_message("assistant", avatar="🔮"):
+            with st.chat_message("assistant", avatar=":material/hub:"):
                 with st.spinner("Mapping to ontology..."):
                     try:
                         from nexus.core.clarifier import clarify
@@ -607,11 +465,13 @@ with tab_sa:
     # ── ArchiMate definitions ──────────────────────────────────────
     LAYER_ORDER = ["Motivation", "Business", "Application", "Technology"]
 
+    # Strict-palette ArchiMate layers: depth of grey + orange accent encodes
+    # the layer (deeper grey = higher / more abstract layer).
     LAYER_COLORS = {
-        "Motivation":  {"band": "#1C1040", "border": "#7C3AED", "accent": "#A78BFA"},
-        "Business":    {"band": "#261800", "border": "#B45309", "accent": "#F59E0B"},
-        "Application": {"band": "#0C1830", "border": "#1D4ED8", "accent": "#3B82F6"},
-        "Technology":  {"band": "#022010", "border": "#047857", "accent": "#10B981"},
+        "Motivation":  {"band": NEAR_BLACK, "border": GREY_DARK,  "accent": ORANGE},
+        "Business":    {"band": GREY_DARK,  "border": GREY_TEXT,  "accent": ORANGE_LIGHT},
+        "Application": {"band": GREY_TEXT,  "border": GREY_LINE,  "accent": ORANGE},
+        "Technology":  {"band": GREY_MUTED, "border": GREY_LINE,  "accent": ORANGE_LIGHT},
     }
 
     ELEMENT_DEFS = {
@@ -635,16 +495,18 @@ with tab_sa:
         "Requirement":          {"layer": "Motivation",  "label": "Requirement"},
     }
 
+    # Strict-palette relationship styling — line dash + orange/grey shade
+    # encodes the relationship type.
     REL_STYLES = {
-        "ServingRelationship":     {"dash": "none",  "color": "#3B82F6"},
-        "RealizationRelationship": {"dash": "6,4",   "color": "#A78BFA"},
-        "CompositionRelationship": {"dash": "none",  "color": "#F59E0B"},
-        "AggregationRelationship": {"dash": "none",  "color": "#10B981"},
-        "FlowRelationship":        {"dash": "4,4",   "color": "#F36633"},
-        "TriggeringRelationship":  {"dash": "none",  "color": "#FB923C"},
-        "AccessRelationship":      {"dash": "3,3",   "color": "#888888"},
-        "AssociationRelationship": {"dash": "none",  "color": "#555555"},
-        "InfluenceRelationship":   {"dash": "8,4",   "color": "#E879F9"},
+        "ServingRelationship":     {"dash": "none",  "color": ORANGE},
+        "RealizationRelationship": {"dash": "6,4",   "color": ORANGE_LIGHT},
+        "CompositionRelationship": {"dash": "none",  "color": NEAR_BLACK},
+        "AggregationRelationship": {"dash": "none",  "color": GREY_DARK},
+        "FlowRelationship":        {"dash": "4,4",   "color": ORANGE},
+        "TriggeringRelationship":  {"dash": "none",  "color": NEAR_BLACK},
+        "AccessRelationship":      {"dash": "3,3",   "color": GREY_MUTED},
+        "AssociationRelationship": {"dash": "none",  "color": GREY_TEXT},
+        "InfluenceRelationship":   {"dash": "8,4",   "color": ORANGE_DARK},
     }
 
     SA_SYSTEM = """You are a senior Enterprise Architect expert in ArchiMate 3.1.
@@ -1038,7 +900,7 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
             with col_dx:
                 drawio_xml = build_drawio_xml(result, pos, svgW, svgH)
                 st.download_button(
-                    label="⬇ Download draw.io XML",
+                    label=f"{mat('download')}  Download draw.io XML",
                     data=drawio_xml,
                     file_name=f"{result.get('title','nexus-arch').replace(' ','_')}.drawio",
                     mime="application/xml",
@@ -1049,7 +911,7 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
             with col_sx:
                 svg_data = render_sa_diagram(result)
                 st.download_button(
-                    label="⬇ Download SVG",
+                    label=f"{mat('download')}  Download SVG",
                     data=svg_data,
                     file_name=f"{result.get('title','nexus-arch').replace(' ','_')}.svg",
                     mime="image/svg+xml",
@@ -1062,11 +924,11 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
 
     else:
         st.markdown(
-            '<div style="text-align:center;padding:3rem 1rem;color:#444444;">'
-            '<div style="font-size:2.5rem;margin-bottom:.8rem">🏛</div>'
-            '<div style="font-size:.95rem;font-weight:600;color:#555555;margin-bottom:.4rem">No diagram generated yet</div>'
-            '<div style="font-size:.82rem">Enter an architecture description above and click <strong style="color:#F36633">Generate Diagram</strong></div>'
-            '</div>',
+            f'<div style="text-align:center;padding:3rem 1rem;color:{GREY_DARK};">'
+            f'<div style="margin-bottom:.8rem;color:{GREY_LINE}">{icon("building", size=44, color=GREY_LINE)}</div>'
+            f'<div style="font-size:.95rem;font-weight:600;color:{GREY_TEXT};margin-bottom:.4rem">No diagram generated yet</div>'
+            f'<div style="font-size:.82rem">Enter an architecture description above and click <strong style="color:{ORANGE}">Generate Diagram</strong></div>'
+            f'</div>',
             unsafe_allow_html=True
         )
 

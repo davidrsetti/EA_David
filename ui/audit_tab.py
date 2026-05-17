@@ -12,6 +12,9 @@ from pathlib import Path
 
 import streamlit as st
 
+from nexus.ui.theme import ORANGE, NEAR_BLACK, GREY_TEXT, GREY_DARK
+from nexus.ui.icons import icon, mat
+
 
 def _load_audit_log(log_path: str, max_records: int = 5000) -> list[dict]:
     """Read JSONL audit log, most recent first."""
@@ -40,13 +43,16 @@ def _load_audit_log(log_path: str, max_records: int = 5000) -> list[dict]:
 def render_audit_tab(user_role: str) -> None:
     """Render the Audit & Observability tab."""
     st.markdown(
-        """
-        <div style="border-left:4px solid #F36633;padding-left:1rem;margin-bottom:1.5rem">
-          <h2 style="margin:0;font-size:1.4rem;color:#1A1A1A">🔍 Audit & Observability</h2>
-          <p style="margin:.25rem 0 0;color:#777;font-size:.9rem">
-            Live view of all NEXUS interactions — queries, guard events, agent actions, and findings.
-            Filterable by event type, user, risk level, and date range.
-          </p>
+        f"""
+        <div style="border-left:4px solid {ORANGE};padding-left:1rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:.8rem">
+          <span style="color:{ORANGE}">{icon("search", size=26, color=ORANGE)}</span>
+          <div>
+            <h2 style="margin:0;font-size:1.4rem;color:{NEAR_BLACK}">Audit &amp; Observability</h2>
+            <p style="margin:.25rem 0 0;color:{GREY_TEXT};font-size:.9rem">
+              Live view of all NEXUS interactions — queries, guard events, agent actions, and findings.
+              Filterable by event type, user, risk level, and date range.
+            </p>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -133,7 +139,7 @@ def render_audit_tab(user_role: str) -> None:
     # ── Export ────────────────────────────────────────────────────────────────
     export_data = "\n".join(json.dumps(r) for r in filtered)
     st.download_button(
-        "⬇️ Export filtered JSONL",
+        f"{mat('download')}  Export filtered JSONL",
         data=export_data,
         file_name="nexus_audit_export.jsonl",
         mime="application/jsonlines",
@@ -158,12 +164,12 @@ def _render_metrics(records: list[dict]) -> None:
 
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     for col, label, value, colour in [
-        (c1, "Total Events", total,             "#6b7280"),
-        (c2, "Queries",      len(queries),       "#3b82f6"),
-        (c3, "Guard Blocks", len(guard_blocks),  "#ef4444" if guard_blocks else "#10b981"),
-        (c4, "PII Detections", len(pii_hits),   "#f97316" if pii_hits else "#10b981"),
-        (c5, "Errors",       len(errors),        "#ef4444" if errors else "#10b981"),
-        (c6, "Avg Latency",  avg_latency,        "#6b7280"),
+        (c1, "Total Events", total,             GREY_TEXT),
+        (c2, "Queries",      len(queries),      GREY_DARK),
+        (c3, "Guard Blocks", len(guard_blocks), ORANGE if guard_blocks else NEAR_BLACK),
+        (c4, "PII Detections", len(pii_hits),   ORANGE if pii_hits else NEAR_BLACK),
+        (c5, "Errors",       len(errors),       ORANGE if errors else NEAR_BLACK),
+        (c6, "Avg Latency",  avg_latency,       GREY_TEXT),
     ]:
         with col:
             col.metric(label, value)

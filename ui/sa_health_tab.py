@@ -8,36 +8,42 @@ tech debt, orphaned apps, and prioritised recommendations.
 from __future__ import annotations
 import streamlit as st
 
+from nexus.ui.theme import (
+    ORANGE, ORANGE_DARK, ORANGE_LIGHT, NEAR_BLACK, WHITE,
+    GREY_TEXT, GREY_DARK, GREY_LINE, GREY_MUTED,
+)
+from nexus.ui.icons import icon, mat
+
 
 _PRIORITY_COLOUR = {
-    "Critical": "#ef4444",
-    "High":     "#f97316",
-    "Medium":   "#f59e0b",
-    "Low":      "#6b7280",
+    "Critical": NEAR_BLACK,
+    "High":     ORANGE,
+    "Medium":   ORANGE_LIGHT,
+    "Low":      GREY_TEXT,
 }
 _PRIORITY_ICON = {
-    "Critical": "🔴",
-    "High":     "🟠",
-    "Medium":   "🟡",
-    "Low":      "⚪",
+    "Critical": mat("warning"),
+    "High":     mat("priority_high"),
+    "Medium":   mat("flag"),
+    "Low":      mat("circle"),
 }
 _CATEGORY_ICON = {
-    "Gap":           "🕳",
-    "TechDebt":      "⚙️",
-    "Rationalise":   "🔀",
-    "Integration":   "🔗",
-    "Orphan":        "👻",
-    "Strategic":     "🧭",
-    "DataRisk":      "🛡",
+    "Gap":           mat("crop_free"),
+    "TechDebt":      mat("settings"),
+    "Rationalise":   mat("merge_type"),
+    "Integration":   mat("hub"),
+    "Orphan":        mat("link_off"),
+    "Strategic":     mat("explore"),
+    "DataRisk":      mat("shield"),
 }
 
 
 def _health_colour(score: int) -> str:
     if score >= 75:
-        return "#10b981"
+        return NEAR_BLACK
     if score >= 50:
-        return "#f59e0b"
-    return "#ef4444"
+        return GREY_DARK
+    return ORANGE_DARK
 
 
 def _health_label(score: int) -> str:
@@ -55,13 +61,16 @@ def _health_label(score: int) -> str:
 def render_sa_health_tab(connected: bool, user_role: str) -> None:
     """Render the SA Portfolio Health tab."""
     st.markdown(
-        """
-        <div style="border-left:4px solid #F36633;padding-left:1rem;margin-bottom:1.5rem">
-          <h2 style="margin:0;font-size:1.4rem;color:#1A1A1A">🏥 Architecture Portfolio Health</h2>
-          <p style="margin:.25rem 0 0;color:#777;font-size:.9rem">
-            Six parallel SPARQL queries surface capability gaps, tech debt, orphaned apps,
-            integration hotspots, duplicate capabilities, and data risks — synthesised by GPT-4o.
-          </p>
+        f"""
+        <div style="border-left:4px solid {ORANGE};padding-left:1rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:.8rem">
+          <span>{icon("heart-pulse", size=26, color=ORANGE)}</span>
+          <div>
+            <h2 style="margin:0;font-size:1.4rem;color:{NEAR_BLACK}">Architecture Portfolio Health</h2>
+            <p style="margin:.25rem 0 0;color:{GREY_TEXT};font-size:.9rem">
+              Six parallel SPARQL queries surface capability gaps, tech debt, orphaned apps,
+              integration hotspots, duplicate capabilities, and data risks — synthesised by GPT-4o.
+            </p>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -82,10 +91,10 @@ def render_sa_health_tab(connected: bool, user_role: str) -> None:
         )
     with col_ctrl2:
         st.markdown("<br>", unsafe_allow_html=True)
-        run_btn = st.button("⚡ Run SA Analysis", key="sa_health_run", type="primary")
+        run_btn = st.button(f"{mat('bolt')}  Run SA Analysis", key="sa_health_run", type="primary")
     with col_ctrl3:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔄 Clear", key="sa_health_clear"):
+        if st.button(f"{mat('refresh')}  Clear", key="sa_health_clear"):
             st.session_state.pop("sa_health_result", None)
             st.rerun()
 
@@ -126,19 +135,19 @@ def _render_metric_strip(result) -> None:
     col0, col1, col2, col3, col4, col5 = st.columns(6)
     with col0:
         st.markdown(
-            f"""<div style="background:#fff;border:1px solid #D8D8D8;border-radius:8px;
+            f"""<div style="background:{WHITE};border:1px solid {GREY_LINE};border-radius:8px;
                             padding:.75rem;text-align:center;border-top:4px solid {hc}">
               <div style="font-size:2rem;font-weight:700;color:{hc}">{result.architecture_health_score}</div>
-              <div style="font-size:.7rem;color:#777;text-transform:uppercase">Health Score</div>
+              <div style="font-size:.7rem;color:{GREY_TEXT};text-transform:uppercase">Health Score</div>
               <div style="font-size:.75rem;color:{hc};font-weight:600">{hl}</div>
             </div>""",
             unsafe_allow_html=True,
         )
-    _metric_card(col1, len(result.capability_gaps),       "Capability Gaps",   "#ef4444")
-    _metric_card(col2, len(result.tech_debt_apps),        "Tech Debt Apps",    "#f97316")
-    _metric_card(col3, len(result.orphaned_apps),         "Orphaned Apps",     "#f59e0b")
-    _metric_card(col4, len(result.integration_hotspots),  "Hotspots",          "#3b82f6")
-    _metric_card(col5, len(result.data_risk_apps),        "Data Risk Apps",    "#8b5cf6")
+    _metric_card(col1, len(result.capability_gaps),       "Capability Gaps",   ORANGE)
+    _metric_card(col2, len(result.tech_debt_apps),        "Tech Debt Apps",    ORANGE_DARK)
+    _metric_card(col3, len(result.orphaned_apps),         "Orphaned Apps",     ORANGE_LIGHT)
+    _metric_card(col4, len(result.integration_hotspots),  "Hotspots",          GREY_DARK)
+    _metric_card(col5, len(result.data_risk_apps),        "Data Risk Apps",    NEAR_BLACK)
 
     if result.executive_summary:
         with st.expander("Executive Summary", expanded=False):
@@ -147,13 +156,13 @@ def _render_metric_strip(result) -> None:
 
 def _metric_card(col, value: int, label: str, colour: str) -> None:
     with col:
-        severity = "High" if value > 5 else ("Medium" if value > 0 else "Low")
-        fill = colour if value > 0 else "#10b981"
+        fill = colour if value > 0 else GREY_LINE
+        text = colour if value > 0 else NEAR_BLACK
         st.markdown(
-            f"""<div style="background:#fff;border:1px solid #D8D8D8;border-radius:8px;
+            f"""<div style="background:{WHITE};border:1px solid {GREY_LINE};border-radius:8px;
                             padding:.75rem;text-align:center;border-top:4px solid {fill}">
-              <div style="font-size:2rem;font-weight:700;color:{fill}">{value}</div>
-              <div style="font-size:.7rem;color:#777;text-transform:uppercase">{label}</div>
+              <div style="font-size:2rem;font-weight:700;color:{text}">{value}</div>
+              <div style="font-size:.7rem;color:{GREY_TEXT};text-transform:uppercase">{label}</div>
             </div>""",
             unsafe_allow_html=True,
         )
@@ -171,10 +180,13 @@ def _render_recommendations(result) -> None:
     quick_wins = [r for r in result.recommendations if r.quick_win]
     if quick_wins:
         st.markdown(
-            f"""<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;
-                           padding:.75rem 1rem;margin-bottom:1rem">
-              <strong style="color:#065f46">⚡ {len(quick_wins)} Quick Win{"s" if len(quick_wins)>1 else ""}:</strong>
-              {" · ".join(qw.title for qw in quick_wins[:5])}
+            f"""<div style="background:{WHITE};border:1px solid {GREY_LINE};border-left:4px solid {ORANGE};border-radius:8px;
+                           padding:.75rem 1rem;margin-bottom:1rem;display:flex;gap:.6rem;align-items:center">
+              <span style="color:{ORANGE}">{icon('zap', size=18, color=ORANGE)}</span>
+              <div style="color:{NEAR_BLACK};font-size:.88rem">
+                <strong style="color:{ORANGE_DARK}">{len(quick_wins)} Quick Win{"s" if len(quick_wins)>1 else ""}:</strong>
+                {" · ".join(qw.title for qw in quick_wins[:5])}
+              </div>
             </div>""",
             unsafe_allow_html=True,
         )
@@ -203,12 +215,12 @@ def _render_recommendations(result) -> None:
         recs = [r for r in recs if r.priority in pri_filter]
 
     for rec in recs:
-        p_colour = _PRIORITY_COLOUR.get(rec.priority, "#888")
-        p_icon   = _PRIORITY_ICON.get(rec.priority, "⚪")
-        c_icon   = _CATEGORY_ICON.get(rec.category, "📌")
-        qw_badge = " ⚡ Quick Win" if rec.quick_win else ""
+        p_colour = _PRIORITY_COLOUR.get(rec.priority, GREY_TEXT)
+        p_icon   = _PRIORITY_ICON.get(rec.priority, mat("circle"))
+        c_icon   = _CATEGORY_ICON.get(rec.category, mat("push_pin"))
+        qw_badge = f" {mat('bolt')} Quick Win" if rec.quick_win else ""
         with st.expander(
-            f"{p_icon} **{rec.title}**{qw_badge} · `{rec.category}` · {rec.priority}",
+            f"{p_icon}  {rec.title}{qw_badge} · {c_icon} {rec.category} · {rec.priority}",
             expanded=(rec.priority == "Critical"),
         ):
             st.markdown(rec.detail)
@@ -236,7 +248,7 @@ def _render_capability_coverage(result) -> None:
             rows.append({
                 "Capability":    cap,
                 "Supporting Apps": len(apps),
-                "Status":        "✅ Covered" if apps else "❌ Gap",
+                "Status":        "Covered" if apps else "Gap",
                 "Apps":          ", ".join(apps[:5]) or "—",
             })
         for gap in result.capability_gaps:
@@ -245,7 +257,7 @@ def _render_capability_coverage(result) -> None:
                 rows.append({
                     "Capability":    cap_label,
                     "Supporting Apps": 0,
-                    "Status":        "❌ Gap",
+                    "Status":        "Gap",
                     "Apps":          "—",
                 })
         if rows:
@@ -255,7 +267,12 @@ def _render_capability_coverage(result) -> None:
 
 def _render_detail_expanders(result) -> None:
     """Detailed lists for tech debt, orphans, hotspots, data risk."""
-    tabs = st.tabs(["⚙️ Tech Debt", "👻 Orphaned", "🔗 Hotspots", "🛡 Data Risk"])
+    tabs = st.tabs([
+        f"{mat('settings')}  Tech Debt",
+        f"{mat('link_off')}  Orphaned",
+        f"{mat('hub')}  Hotspots",
+        f"{mat('shield')}  Data Risk",
+    ])
 
     with tabs[0]:
         if result.tech_debt_apps:

@@ -17,6 +17,8 @@ from urllib.parse import quote
 import pandas as pd
 import streamlit as st
 
+from nexus.ui.icons import mat
+
 # ── Constants ────────────────────────────────────────────────────────────────
 UC_NS            = "urn:databricks:uc:"
 UC_ONT_NS        = "urn:databricks:uc:ontology#"
@@ -252,18 +254,18 @@ def _get_table_domains(sd, cat, sch, tbl):
 # ── Management panel ──────────────────────────────────────────────────────────
 
 def _render_manage_panel(stardog):
-    with st.expander("⚙️ Manage Business Units & Data Domains", expanded=False):
+    with st.expander(f"{mat('settings')}  Manage Business Units & Data Domains", expanded=False):
         t_bu, t_dom, t_assign = st.tabs(["Business Units", "Data Domains", "Assign Tables"])
 
         with t_bu:
             for i, bu in enumerate(_get_bus(stardog)):
                 c1, c2 = st.columns([9, 1])
                 c1.write(bu)
-                if c2.button("🗑", key=f"_dbu_{i}"):
+                if c2.button(mat("delete"), key=f"_dbu_{i}"):
                     try: _delete_bu(stardog, bu); st.rerun()
                     except Exception as e: st.error(str(e))
             new = st.text_input("New Business Unit", key="_new_bu")
-            if st.button("➕ Add BU", key="_add_bu") and new.strip():
+            if st.button(f"{mat('add')}  Add BU", key="_add_bu") and new.strip():
                 try: _create_bu(stardog, new.strip()); st.rerun()
                 except Exception as e: st.error(str(e))
 
@@ -271,11 +273,11 @@ def _render_manage_panel(stardog):
             for i, dom in enumerate(_get_domains(stardog)):
                 c1, c2 = st.columns([9, 1])
                 c1.write(dom)
-                if c2.button("🗑", key=f"_ddom_{i}"):
+                if c2.button(mat("delete"), key=f"_ddom_{i}"):
                     try: _delete_domain(stardog, dom); st.rerun()
                     except Exception as e: st.error(str(e))
             new = st.text_input("New Data Domain", key="_new_dom")
-            if st.button("➕ Add Domain", key="_add_dom") and new.strip():
+            if st.button(f"{mat('add')}  Add Domain", key="_add_dom") and new.strip():
                 try: _create_domain(stardog, new.strip()); st.rerun()
                 except Exception as e: st.error(str(e))
 
@@ -303,7 +305,7 @@ def _render_manage_panel(stardog):
                     s_doms = st.multiselect("Domains", doms_all,
                                             default=[d for d in cur_doms if d in doms_all],
                                             key="_assign_doms")
-                    if st.button("💾 Save", key="_assign_save"):
+                    if st.button(f"{mat('save')}  Save", key="_assign_save"):
                         try:
                             _assign_table_bu(stardog, mcat, msch, mtbl,
                                              s_bu if s_bu != "(none)" else None)
@@ -322,7 +324,7 @@ def _get_buses_all(sd):  # alias to avoid shadowing
 def render_data_query_tab(stardog, databricks):
     _init_state()
 
-    st.markdown("### 📊 Data Query")
+    st.markdown(f"### {mat('database')}  Data Query")
 
     if stardog is None or databricks is None:
         st.warning("Connect to StarDog using the sidebar to enable Data Query.")
@@ -333,7 +335,7 @@ def render_data_query_tab(stardog, databricks):
     all_doms_unfiltered = _get_domains(stardog)
 
     if not all_bus and not all_doms_unfiltered:
-        st.info("No Business Units or Data Domains defined yet. Use **⚙️ Manage** below to create them, then assign tables.")
+        st.info("No Business Units or Data Domains defined yet. Use the **Manage** panel below to create them, then assign tables.")
         _render_manage_panel(stardog)
         return
 
@@ -357,7 +359,7 @@ def render_data_query_tab(stardog, databricks):
                                  label_visibility="collapsed")
 
     with col_clear:
-        if st.button("🗑", help="Clear question, SQL and results", use_container_width=True):
+        if st.button(mat("delete"), help="Clear question, SQL and results", use_container_width=True):
             _clear_query()
             st.rerun()
 
@@ -378,7 +380,7 @@ def render_data_query_tab(stardog, databricks):
     # Scope summary
     if scope_ready:
         if scoped:
-            st.caption(f"📂 {len(scoped)} data product(s) in scope")
+            st.caption(f"{mat('folder_open')}  {len(scoped)} data product(s) in scope")
             with st.expander("Views and Tables", expanded=False):
                 for t in scoped:
                     st.markdown(
@@ -388,7 +390,7 @@ def render_data_query_tab(stardog, databricks):
                     if t.get("description"):
                         st.caption(t["description"])
         else:
-            st.warning("No data products are assigned to this BU/Domain yet. Use ⚙️ Manage below to assign tables.")
+            st.warning("No data products are assigned to this BU/Domain yet. Use the **Manage** panel below to assign tables.")
 
     st.markdown("---")
 
@@ -408,7 +410,7 @@ def render_data_query_tab(stardog, databricks):
 
     btn_col, _, _ = st.columns([2, 4, 4])
     with btn_col:
-        gen = st.button("✨ Generate SQL",
+        gen = st.button(f"{mat('auto_awesome')}  Generate SQL",
                         disabled=question_disabled or not question.strip(),
                         use_container_width=True)
 
@@ -437,7 +439,7 @@ def render_data_query_tab(stardog, databricks):
 
         run_col, _ = st.columns([2, 8])
         with run_col:
-            run = st.button("▶ Run", use_container_width=True)
+            run = st.button(f"{mat('play_arrow')}  Run", use_container_width=True)
 
         if run:
             with st.spinner("Running on Databricks…"):
@@ -457,7 +459,7 @@ def render_data_query_tab(stardog, databricks):
         st.caption(f"{len(result_rows):,} rows returned")
         st.dataframe(pd.DataFrame(result_rows, columns=result_cols), use_container_width=True)
 
-        if st.button("💬 Explain results", key="_dq_explain"):
+        if st.button(f"{mat('forum')}  Explain results", key="_dq_explain"):
             with st.spinner("Synthesising…"):
                 try:
                     from nexus.core.answer_engine import synthesise

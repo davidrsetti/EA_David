@@ -8,6 +8,9 @@ with SVG download support.
 from __future__ import annotations
 import streamlit as st
 
+from nexus.ui.theme import ORANGE, NEAR_BLACK, GREY_TEXT
+from nexus.ui.icons import icon, mat
+
 _DIAGRAM_LABELS = {
     "dependency":      "Application Dependency Map",
     "capability_map":  "Business Capability Map",
@@ -29,13 +32,16 @@ _MERMAID_INIT = """
 def render_diagram_tab(connected: bool, user_role: str) -> None:
     """Render the Architecture Diagram tab."""
     st.markdown(
-        """
-        <div style="border-left:4px solid #F36633;padding-left:1rem;margin-bottom:1.5rem">
-          <h2 style="margin:0;font-size:1.4rem;color:#1A1A1A">🗺️ Architecture Diagram Studio</h2>
-          <p style="margin:.25rem 0 0;color:#777;font-size:.9rem">
-            Generate 7 types of architecture diagram directly from the live knowledge graph.
-            Export as SVG or draw.io XML.
-          </p>
+        f"""
+        <div style="border-left:4px solid {ORANGE};padding-left:1rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:.8rem">
+          <span>{icon("map", size=26, color=ORANGE)}</span>
+          <div>
+            <h2 style="margin:0;font-size:1.4rem;color:{NEAR_BLACK}">Architecture Diagram Studio</h2>
+            <p style="margin:.25rem 0 0;color:{GREY_TEXT};font-size:.9rem">
+              Generate 7 types of architecture diagram directly from the live knowledge graph.
+              Export as SVG or draw.io XML.
+            </p>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -52,7 +58,7 @@ def render_diagram_tab(connected: bool, user_role: str) -> None:
         diagram_type = st.selectbox(
             "Diagram type",
             options=list(_DIAGRAM_LABELS.keys()),
-            format_func=lambda k: f"{'⚠️' if k in _ENTITY_REQUIRED else '📊'} {_DIAGRAM_LABELS[k]}",
+            format_func=lambda k: f"{mat('warning') if k in _ENTITY_REQUIRED else mat('schema')}  {_DIAGRAM_LABELS[k]}",
             key="diag_type",
         )
         fmt = st.radio(
@@ -86,7 +92,7 @@ def render_diagram_tab(connected: bool, user_role: str) -> None:
         )
         st.markdown("<br>", unsafe_allow_html=True)
         generate_btn = st.button(
-            "🖼️ Generate Diagram",
+            f"{mat('image')}  Generate Diagram",
             key="diag_generate",
             type="primary",
             disabled=(diagram_type in _ENTITY_REQUIRED and not entity),
@@ -132,7 +138,7 @@ def render_diagram_tab(connected: bool, user_role: str) -> None:
             st.warning(f"Partial result: {result.error}")
 
         # ── Render ────────────────────────────────────────────────────────────
-        tab_diagram, tab_export = st.tabs(["🖼️ Diagram", "📥 Export"])
+        tab_diagram, tab_export = st.tabs([f"{mat('image')}  Diagram", f"{mat('download')}  Export"])
 
         with tab_diagram:
             if not result.content:
@@ -157,7 +163,7 @@ def render_diagram_tab(connected: bool, user_role: str) -> None:
                 dl1, dl2, dl3 = st.columns(3)
                 with dl1:
                     st.download_button(
-                        "⬇️ Download DOT/Mermaid source",
+                        f"{mat('download')}  Download DOT/Mermaid source",
                         data=result.content,
                         file_name=f"nexus_{result.diagram_type}.{'dot' if result.fmt == 'dot' else 'md'}",
                         mime="text/plain",
@@ -166,14 +172,14 @@ def render_diagram_tab(connected: bool, user_role: str) -> None:
                     drawio = _to_drawio_xml(result)
                     if drawio:
                         st.download_button(
-                            "⬇️ Download draw.io XML",
+                            f"{mat('download')}  Download draw.io XML",
                             data=drawio,
                             file_name=f"nexus_{result.diagram_type}.drawio",
                             mime="application/xml",
                         )
                 with dl3:
                     st.download_button(
-                        "⬇️ Download raw content",
+                        f"{mat('download')}  Download raw content",
                         data=result.content,
                         file_name=f"nexus_{result.diagram_type}.txt",
                         mime="text/plain",

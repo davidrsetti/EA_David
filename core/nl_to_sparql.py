@@ -150,8 +150,8 @@ Examples:
 - "Data Platforms" → FILTER on l3Label or l2Label containing "platform" AND ("data" in l2Label or l1Label)
 - "Streaming tools" → FILTER on capLabel containing "stream"
 
-- "Applications" = app:Application; link to capabilities via ea:enablesBusinessCapabilityL3.
-- "People" / "employees" = hr:User; linked to departments via hr:belongsToDepartment.
+- "Applications" = app:Application; link to capabilities via ea:enablesBusinessCapability.
+- "People" / "employees" = hr:User; linked to departments via hr:memberOfDepartment.
 - "Business capabilities" = ea:BusinessCapabilityL3 (L1/L2 for higher levels).
 - "CSO / security capabilities" = ea:CSOCapabilityL3 (L1/L2 for higher levels).
 - NEVER search on rdfs:label alone to find typed entities — always assert the rdf:type first.
@@ -176,7 +176,7 @@ RULES:
     CORRECT pattern for subquery aggregation:
       SELECT ?app ?appLabel ?capCount WHERE {{
         {{ SELECT ?app (COUNT(DISTINCT ?cap) AS ?capCount) WHERE {{
-             ?app a app:Application ; ea:enablesBusinessCapabilityL3 ?cap .
+             ?app a app:Application ; ea:enablesBusinessCapability ?cap .
            }} GROUP BY ?app }}
         ?app rdfs:label ?appLabel .
       }} ORDER BY DESC(?capCount) LIMIT 100
@@ -187,10 +187,10 @@ RULES:
       Always use OPTIONAL for labels so apps/caps without rdfs:label are not silently dropped.
       SELECT DISTINCT ?cap ?capLabel ?app ?appLabel WHERE {{
         {{ SELECT ?cap WHERE {{
-             ?a a app:Application ; ea:enablesBusinessCapabilityL3 ?cap .
+             ?a a app:Application ; ea:enablesBusinessCapability ?cap .
            }} GROUP BY ?cap HAVING (COUNT(DISTINCT ?a) > 1) }}
         ?app a app:Application ;
-             ea:enablesBusinessCapabilityL3 ?cap .
+             ea:enablesBusinessCapability ?cap .
         OPTIONAL {{ ?app rdfs:label ?appLabel }}
         OPTIONAL {{ ?cap rdfs:label ?capLabel }}
       }} ORDER BY ?cap ?app

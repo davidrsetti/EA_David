@@ -117,11 +117,11 @@ def analyze_change_impact(
     SELECT ?cap ?capLabel (COUNT(?other) AS ?otherApps) WHERE {{
         ?target rdfs:label ?targetLabel .
         FILTER(LCASE(STR(?targetLabel)) = LCASE("{entity_safe}"))
-        ?target ea:enablesBusinessCapabilityL3 ?cap .
+        ?target ea:enablesBusinessCapability ?cap .
         OPTIONAL {{ ?cap rdfs:label ?capLabel }}
         OPTIONAL {{
             ?other a app:Application ;
-                   ea:enablesBusinessCapabilityL3 ?cap .
+                   ea:enablesBusinessCapability ?cap .
             FILTER(?other != ?target)
         }}
     }} GROUP BY ?cap ?capLabel
@@ -135,7 +135,8 @@ def analyze_change_impact(
         ?target rdfs:label ?targetLabel .
         FILTER(LCASE(STR(?targetLabel)) = LCASE("{entity_safe}"))
         ?target (app:processes | app:stores | app:accesses) ?asset .
-        ?asset data:classification ?classification .
+        ?asset ea:dataProtectedByClassification ?dc .
+        ?dc sec:classificationLevel ?classification .
         FILTER(?classification IN ("Restricted", "Confidential"))
         OPTIONAL {{ ?asset rdfs:label ?assetLabel }}
     }} LIMIT 30
@@ -206,41 +207,43 @@ def analyze_change_impact(
                     break
         return list(dict.fromkeys(out))  # deduplicate preserving order
 
+    # Strict GSK palette — depth of orange/grey encodes ring severity.
+    # Icons are Material Symbol shortcodes rendered by Streamlit (>=1.36).
     rings = [
         ImpactRing(
             label="Direct Dependents",
-            icon="⚠️",
-            colour="#ef4444",
+            icon=":material/warning:",
+            colour="#000000",          # NEAR_BLACK — most direct/severe
             entities=_labels(raw.get("direct", []), "depLabel", "dep"),
         ),
         ImpactRing(
             label="Indirect Dependents (depth 2)",
-            icon="🔶",
-            colour="#f97316",
+            icon=":material/share:",
+            colour="#F36633",          # ORANGE — strong but secondary
             entities=_labels(raw.get("indirect", []), "appLabel", "app"),
         ),
         ImpactRing(
             label="Capability Gaps",
-            icon="🕳",
-            colour="#8b5cf6",
+            icon=":material/crop_free:",
+            colour="#C4501F",          # ORANGE_DARK
             entities=_labels(raw.get("cap_risk", []), "capLabel", "cap"),
         ),
         ImpactRing(
             label="Data Assets at Risk",
-            icon="🛡",
-            colour="#dc2626",
+            icon=":material/shield:",
+            colour="#1A1A1A",          # NEAR_BLACK
             entities=_labels(raw.get("data_risk", []), "assetLabel", "asset"),
         ),
         ImpactRing(
             label="AI Agents Affected",
-            icon="🤖",
-            colour="#7c3aed",
+            icon=":material/smart_toy:",
+            colour="#333333",          # GREY_DARK
             entities=_labels(raw.get("agents", []), "agentLabel", "agent"),
         ),
         ImpactRing(
             label="People to Notify",
-            icon="👤",
-            colour="#0891b2",
+            icon=":material/group:",
+            colour="#555555",          # GREY_TEXT
             entities=_labels(raw.get("people", []), "personLabel", "person"),
         ),
     ]
