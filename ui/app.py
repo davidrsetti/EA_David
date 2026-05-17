@@ -787,7 +787,7 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
 
         svg_parts = [
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
-            f'style="background:#F7F7F7;display:block;font-family:DM Sans,sans-serif;">'
+            f'style="background:#F7F7F7;display:block;font-family:\'EB Garamond\',Georgia,serif;">'
         ]
 
         # Layer bands
@@ -864,8 +864,8 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
                 f'rx="1" fill="{lc["accent"]}" opacity="0.5"/>'
                 f'<text x="{el["x"]+6}" y="{el["y"]+14}" font-family="DM Mono,monospace" '
                 f'font-size="8" fill="{lc["accent"]}" opacity="0.7">{edef["label"]}</text>'
-                f'<text x="{cx}" y="{cy}" text-anchor="middle" font-family="DM Sans,sans-serif" '
-                f'font-size="11" font-weight="600" fill="#1A1A1A">{el["label"]}</text>'
+                f'<text x="{cx}" y="{cy}" text-anchor="middle" font-family="\'EB Garamond\',Georgia,serif" '
+                f'font-size="12" font-weight="600" fill="#1A1A1A">{el["label"]}</text>'
             )
 
         svg_parts.append("</svg>")

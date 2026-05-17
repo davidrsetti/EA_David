@@ -45,12 +45,12 @@ ALERT_INFO_BG,    ALERT_INFO_FG,    ALERT_INFO_BORDER    = SURFACE_2, GREY_DARK,
 # ── GLOBAL CSS ───────────────────────────────────────────────────────────
 _CSS = f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Mono:wght@400;500&display=swap');
 
 /* Force light theme */
 html,body{{color-scheme:light!important;background:{SURFACE}!important;color:{NEAR_BLACK}!important;}}
-html,body,[class*="css"]{{font-family:'DM Sans',sans-serif;}}
-code,.stCode,pre{{font-family:'DM Mono',monospace;}}
+html,body,[class*="css"]{{font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:16px;}}
+code,.stCode,pre{{font-family:'DM Mono',monospace;font-size:.92em;}}
 
 /* App shell */
 .stApp,
@@ -90,9 +90,9 @@ section[data-testid="stSidebar"] [data-testid="stCaptionContainer"]{{color:{GREY
   background:radial-gradient(ellipse at 80% 50%,rgba(243,102,51,.05) 0%,transparent 65%);
   pointer-events:none;
 }}
-.nexus-title{{font-size:1.7rem;font-weight:700;color:{NEAR_BLACK}!important;margin:0;line-height:1.2;letter-spacing:-0.02em;}}
-.nexus-title span{{color:{ORANGE}!important;}}
-.nexus-sub{{color:{GREY_TEXT}!important;font-size:.82rem;margin:.3rem 0 0;font-weight:400;}}
+.nexus-title{{font-size:1.85rem;font-weight:600;color:{NEAR_BLACK}!important;margin:0;line-height:1.2;letter-spacing:-0.01em;font-style:italic;}}
+.nexus-title span{{color:{ORANGE}!important;font-style:normal;}}
+.nexus-sub{{color:{GREY_TEXT}!important;font-size:.88rem;margin:.3rem 0 0;font-weight:400;letter-spacing:.02em;}}
 
 .nexus-status{{display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;color:{GREY_TEXT}!important;}}
 .nexus-status-dot{{width:8px;height:8px;border-radius:50%;display:inline-block;}}
@@ -148,7 +148,7 @@ details[open] summary{{color:{ORANGE}!important;}}
 .stSpinner>div>div{{border-top-color:{ORANGE}!important;}}
 
 /* Buttons */
-.stButton>button{{background:{WHITE}!important;border:1px solid {GREY_LINE}!important;color:{GREY_DARK}!important;border-radius:6px!important;font-size:.82rem!important;transition:all .15s!important;}}
+.stButton>button{{background:{WHITE}!important;border:1px solid {GREY_LINE}!important;color:{GREY_DARK}!important;border-radius:6px!important;font-size:.92rem!important;font-family:'EB Garamond',Georgia,serif!important;letter-spacing:.01em!important;transition:all .15s!important;}}
 .stButton>button:hover{{border-color:{ORANGE}!important;color:{ORANGE}!important;background:{WHITE}!important;}}
 .stButton>button:focus,.stButton>button:active{{background:{ORANGE}!important;color:{WHITE}!important;border-color:{ORANGE}!important;box-shadow:none!important;}}
 .stButton>button[kind="primary"]{{background:{ORANGE}!important;color:{WHITE}!important;border-color:{ORANGE}!important;}}
@@ -169,8 +169,9 @@ details[open] summary{{color:{ORANGE}!important;}}
   color:{GREY_TEXT}!important;
   border-bottom:2px solid transparent!important;
   padding:.55rem .9rem!important;
-  font-size:.85rem!important;
+  font-size:.95rem!important;
   font-weight:500!important;
+  font-family:'EB Garamond',Georgia,serif!important;
   transition:color .15s, border-color .15s;
 }}
 [data-baseweb="tab"]:hover{{color:{NEAR_BLACK}!important;background:{SURFACE_2}!important;}}
@@ -183,8 +184,8 @@ details[open] summary{{color:{ORANGE}!important;}}
 
 /* Metrics */
 [data-testid="stMetric"]{{background:{WHITE};border:1px solid {GREY_LINE};border-radius:8px;padding:.8rem 1rem;}}
-[data-testid="stMetricLabel"]{{color:{GREY_TEXT}!important;font-size:.72rem!important;text-transform:uppercase;letter-spacing:.06em;}}
-[data-testid="stMetricValue"]{{color:{NEAR_BLACK}!important;font-weight:600!important;}}
+[data-testid="stMetricLabel"]{{color:{GREY_TEXT}!important;font-size:.78rem!important;text-transform:uppercase;letter-spacing:.08em;font-family:'EB Garamond',Georgia,serif!important;}}
+[data-testid="stMetricValue"]{{color:{NEAR_BLACK}!important;font-weight:600!important;font-size:1.6rem!important;}}
 [data-testid="stMetricDelta"] svg{{display:none;}}
 [data-testid="stMetricDelta"]{{color:{ORANGE}!important;}}
 
