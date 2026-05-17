@@ -132,9 +132,16 @@ class DenodoSettings:
 
 @dataclass(frozen=True)
 class DatabricksSettings:
-    host:      str = field(default_factory=lambda: os.getenv("DATABRICKS_HOST",      "adb-4213617139033191.11.azuredatabricks.net"))
-    http_path: str = field(default_factory=lambda: os.getenv("DATABRICKS_HTTP_PATH", "/sql/1.0/warehouses/aeb3dfb63c5b8d7f"))
-    token:     str = field(default_factory=lambda: os.getenv("DATABRICKS_TOKEN",     ""))
+    host:         str = field(default_factory=lambda: os.getenv("DATABRICKS_HOST",         "adb-4213617139033191.11.azuredatabricks.net"))
+    http_path:    str = field(default_factory=lambda: os.getenv("DATABRICKS_HTTP_PATH",    "/sql/1.0/warehouses/aeb3dfb63c5b8d7f"))
+    token:        str = field(default_factory=lambda: os.getenv("DATABRICKS_TOKEN",        ""))
+    sample_table: str = field(default_factory=lambda: os.getenv("DATABRICKS_SAMPLE_TABLE", ""))
+
+
+@dataclass(frozen=True)
+class RedisSettings:
+    host: str = field(default_factory=lambda: os.getenv("REDIS_HOST", "localhost"))
+    port: int = field(default_factory=lambda: int(os.getenv("REDIS_PORT", "6379")))
 
 
 @dataclass(frozen=True)
@@ -159,6 +166,7 @@ class Settings:
     denodo:     DenodoSettings     = field(default_factory=DenodoSettings)
     databricks: DatabricksSettings = field(default_factory=DatabricksSettings)
     anthropic:  AnthropicSettings  = field(default_factory=AnthropicSettings)
+    redis:      RedisSettings      = field(default_factory=RedisSettings)
     environment: str               = field(default_factory=lambda: os.getenv("NEXUS_ENV", "development"))
 
     @property

@@ -192,7 +192,7 @@ st.markdown(
 )
 
 # ── Main tabs ─────────────────────────────────────────────────────────
-tab_chat, tab_guided_sa, tab_sa, tab_data, tab_portfolio, tab_sa_health, tab_diagram, tab_impact, tab_ai_gov, tab_audit, tab_agent_tasks, tab_migration = st.tabs(TAB_LABELS)
+tab_chat, tab_guided_sa, tab_sa, tab_data, tab_portfolio, tab_sa_health, tab_diagram, tab_impact, tab_ai_gov, tab_audit, tab_agent_tasks, tab_migration, tab_bsl, tab_gap = st.tabs(TAB_LABELS)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -371,7 +371,11 @@ with tab_chat:
             try:
                 raw     = db.query(sparql)
                 columns, rows = db.to_rows(raw)
+                from nexus.core.sparql_feedback import record_success
+                record_success(question, sparql, len(rows))
             except Exception as exc:
+                from nexus.core.sparql_feedback import record_failure
+                record_failure(question, sparql, str(exc))
                 msg = f"Query failed: {exc}"
                 status.markdown(msg)
                 st.session_state.messages.append({"role": "assistant", "content": msg})
@@ -1245,3 +1249,17 @@ with tab_agent_tasks:
 with tab_migration:
     from nexus.ui.migration_tab import render as _render_migration
     _render_migration(ORANGE, GREY_MUTED, GREY_LINE, WHITE, NEAR_BLACK)
+
+# ═══════════════════════════════════════════════════════════════════════
+# TAB 13 — BUSINESS KPIs (BSL)
+# ═══════════════════════════════════════════════════════════════════════
+with tab_bsl:
+    from nexus.ui.bsl_tab import render as _render_bsl
+    _render_bsl(connected)
+
+# ═══════════════════════════════════════════════════════════════════════
+# TAB 14 — GAP ANALYSIS & ROADMAP
+# ═══════════════════════════════════════════════════════════════════════
+with tab_gap:
+    from nexus.ui.gap_roadmap_tab import render as _render_gap
+    _render_gap(ORANGE, GREY_MUTED, GREY_LINE, WHITE, NEAR_BLACK)

@@ -7,11 +7,28 @@ when ANTHROPIC_API_KEY is configured. Falls back to GPT-4o otherwise.
 from __future__ import annotations
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 
 from nexus.config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+# Patterns that signal the user wants numeric business data from Databricks,
+# not just metadata from the knowledge graph.
+_KPI_PATTERNS = re.compile(
+    r"\b("
+    r"top\s+\d+|bottom\s+\d+|rank|revenue|sales|coaching|customer|patients?"
+    r"|headcount|count|total|sum|average|avg|how\s+many|how\s+much"
+    r"|kpi|metric|measure|forecast|trend|quarter|ytd|mtd|fy\d{2}"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _is_kpi_question(question: str) -> bool:
+    """Return True when the question is likely asking for numeric business data."""
+    return bool(_KPI_PATTERNS.search(question))
 
 
 @dataclass
@@ -30,8 +47,34 @@ class AnswerResult:
 SYSTEM_PROMPT = """You are NEXUS, a precise enterprise knowledge graph assistant.
 
 You have access to tools to perform follow-up SPARQL queries, fetch entity context,
-and assert findings. Use them when the initial results are incomplete or ambiguous.
-Limit yourself to at most 4 tool calls per question.
+assert findings, and query Databricks for numeric business data.
+Limit yourself to at most 5 tool calls per question.
+
+━━━ KPI FEDERATION PROTOCOL ━━━
+When the question asks for numeric or aggregate business data (revenue, sales, coaching days,
+headcount, KPI values, rankings, totals, trends), follow this two-step protocol:
+
+STEP 1 — Find the data product via SPARQL:
+  Call run_sparql with a query that finds kpi:DataProduct nodes related to the topic:
+
+  PREFIX kpi:  <https://ontology.ea.example.org/kpi#>
+  PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+  SELECT ?dp ?label ?table WHERE {
+    ?dp a kpi:DataProduct ;
+        rdfs:label ?label ;
+        kpi:databricksTable ?table .
+    FILTER(CONTAINS(LCASE(?label), "<topic>") || CONTAINS(LCASE(?table), "<topic>"))
+  } LIMIT 5
+
+STEP 2 — Query Databricks for the actual numbers:
+  Use the kpi:databricksTable value from step 1.
+  Call query_databricks with a fully-qualified SELECT:
+  SELECT ... FROM `catalog`.`schema`.`table` WHERE ... LIMIT n
+
+If step 1 returns no data product, say so clearly — do NOT invent numbers.
+If the initial results already contain a Databricks table name or numeric rows,
+skip step 1 and go directly to query_databricks.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 After gathering all needed information, structure your final response in EXACTLY
 THREE sections using these headers:
@@ -86,6 +129,16 @@ def synthesise_full(
     Uses Claude tool_use if available, falls back to GPT-4o.
     """
     if not rows:
+        # KPI / numeric questions: let Claude attempt federation even with empty SPARQL results.
+        if _is_kpi_question(question) and settings.anthropic.enabled:
+            return _synthesise_claude(
+                question, columns, rows, sparql, total_count, user_role, session_id,
+                kpi_hint=(
+                    "The initial SPARQL returned no rows. This is a numeric business data question. "
+                    "Use the KPI Federation Protocol: call run_sparql to find the relevant "
+                    "kpi:DataProduct and its kpi:databricksTable, then call query_databricks."
+                ),
+            )
         answer = (
             "**Direct Answer**\n"
             f"No results were found for: _{question}_\n\n"
@@ -118,6 +171,7 @@ def _synthesise_claude(
     total_count: int,
     user_role:   str,
     session_id:  str,
+    kpi_hint:    str = "",
 ) -> AnswerResult:
     from nexus.core.claude_client  import tool_call_loop
     from nexus.core.tool_executor  import dispatch
@@ -133,6 +187,7 @@ def _synthesise_claude(
             tool_executor= dispatch,
             user_role    = user_role,
             session_id   = session_id,
+            kpi_hint     = kpi_hint,
         )
         if not answer:
             raise ValueError("Empty response from Claude")

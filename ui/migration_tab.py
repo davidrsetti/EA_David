@@ -78,6 +78,24 @@ def render(ORANGE: str, GREY_MUTED: str, GREY_LINE: str, WHITE: str, NEAR_BLACK:
         unsafe_allow_html=True,
     )
 
+    # ── Section 0: Ontology Setup ───────────────────────────────────────
+    with st.expander("Graph Setup — Load SAP Migration Ontology", expanded=False):
+        st.caption(
+            "Load the `kpi:` + `mig:` + `bw:` ontology into Stardog as named graph "
+            "`urn:SAP_Migration`. Required before any migration SPARQL will return results. "
+            "Idempotent — safe to re-run after ontology updates."
+        )
+        if st.button("Load / Refresh Ontology into Stardog", use_container_width=True, key="mig_load_ont"):
+            with st.spinner("Loading ontology…"):
+                result = _api_post("/v1/migration/load-ontology", {})
+                if "error" not in result and result.get("status") == "ok":
+                    st.success(
+                        f"Ontology loaded into `{result['graph']}` "
+                        f"({result['bytes']:,} bytes)"
+                    )
+                else:
+                    st.error(f"Load failed: {result}")
+
     # ── Section 1: Portfolio Dashboard ─────────────────────────────────
     st.subheader("Portfolio Dashboard", anchor=False)
     dash = _api_get("/v1/migration/dashboard")
@@ -255,3 +273,106 @@ def render(ORANGE: str, GREY_MUTED: str, GREY_LINE: str, WHITE: str, NEAR_BLACK:
                     st.error(f"Ingest failed: {result['error']}")
         except json.JSONDecodeError as exc:
             st.error(f"Invalid JSON: {exc}")
+
+    st.divider()
+
+    # ── Section 6: Register Databricks Data Product ─────────────────────
+    st.subheader("Register Databricks Data Product", anchor=False)
+    st.caption(
+        "Assert a Databricks table as a `kpi:DataProduct` node in the NEXUS graph so "
+        "federated KPI queries can locate and query it. The sample table from `.env` is "
+        "pre-filled — override for any table."
+    )
+
+    try:
+        import requests as _req
+        _cfg = _req.get(f"{_API}/v1/migration/config", timeout=3).json()
+        _default_table = _cfg.get("sample_table", "")
+    except Exception:
+        _default_table = ""
+
+    with st.form("register_dp_form"):
+        dp_table = st.text_input(
+            "Databricks table (catalog.schema.table)",
+            value=_default_table,
+            placeholder="rx_g_cda_devtest001.kpi_common.kpi_agg_customer_facing_days_and_flsl_coaching",
+        )
+        dp_label = st.text_input("Display label (optional, defaults to table name)")
+        dp_desc  = st.text_area("Description (optional)", height=70)
+        dp_kpi   = st.text_input(
+            "Linked KPI name (optional)",
+            placeholder="e.g. Customer Facing Days",
+            help="Creates a kpi:KPI node and links this data product to it.",
+        )
+        register = st.form_submit_button("Register in NEXUS Graph", use_container_width=True)
+
+    if register:
+        if not dp_table.strip():
+            st.warning("Table name is required.")
+        else:
+            result = _api_post(
+                "/v1/migration/register-data-product",
+                {"table": dp_table.strip(), "label": dp_label.strip(),
+                 "description": dp_desc.strip(), "kpi_label": dp_kpi.strip()},
+            )
+            if "error" not in result and "data_product_uri" in result:
+                st.success(
+                    f"Registered **{result['label']}** as `kpi:DataProduct`  \n"
+                    f"`{result['data_product_uri']}`"
+                )
+            else:
+                st.error(f"Registration failed: {result}")
+
+    st.divider()
+
+    # ── Section 7: SHACL Validation ─────────────────────────────────────
+    st.subheader("Graph Validation", anchor=False)
+    st.caption(
+        "Run SHACL-equivalent constraint checks on the `kpi:` and `mig:` graphs. "
+        "Each shape reports violations so you can identify gaps before migration waves."
+    )
+
+    if st.button("Run Validation", use_container_width=True, key="mig_validate"):
+        with st.spinner("Checking constraints…"):
+            report = _api_get("/v1/migration/validate")
+
+        if "error" in report:
+            st.error(f"Validation failed: {report['error']}")
+        else:
+            passed = report.get("passed", False)
+            colour = DISP_COLOURS["NEXUS"] if passed else "#EF4444"
+            st.markdown(
+                f'<div style="background:{colour}18;border-left:4px solid {colour};'
+                f'border-radius:8px;padding:.7rem 1.1rem;margin:.5rem 0">'
+                f'<span style="font-weight:700;color:{colour}">'
+                f'{"PASSED" if passed else "FAILED"}</span>'
+                f' &nbsp;·&nbsp; {report.get("summary","")}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+            SEVER_COLOUR = {"High": "#EF4444", "Medium": "#F59E0B", "Low": "#6B7280"}
+            for shape in report.get("shapes", []):
+                ok       = shape.get("passed", False)
+                sev      = shape.get("severity", "Low")
+                sc       = DISP_COLOURS["NEXUS"] if ok else SEVER_COLOUR.get(sev, GREY_MUTED)
+                icon     = "✓" if ok else "✗"
+                vcount   = shape.get("violation_count", 0)
+                err      = shape.get("error")
+
+                with st.expander(
+                    f"{icon}  [{shape['shape_id']}] {shape['label']}  "
+                    f"({'PASS' if ok else f'{vcount} violation(s)' if not err else 'ERROR'})",
+                    expanded=not ok,
+                ):
+                    if err:
+                        st.error(f"Shape error: {err}")
+                    elif not ok and shape.get("violations"):
+                        viols = shape["violations"]
+                        df_v = pd.DataFrame(viols)
+                        df_v.columns = ["URI", "Label"]
+                        st.dataframe(df_v, use_container_width=True, hide_index=True)
+                        if vcount > len(viols):
+                            st.caption(f"Showing first {len(viols)} of {vcount} violations.")
+                    else:
+                        st.success("No violations found.")

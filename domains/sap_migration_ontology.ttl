@@ -1,0 +1,415 @@
+# =============================================================================
+# SAP Migration + KPI Ontology — NEXUS Extension
+# Namespace: https://ontology.ea.example.org/kpi#   (kpi:)
+#            https://ontology.ea.example.org/migration# (mig:)
+#            https://ontology.ea.example.org/bw#    (bw:)
+#
+# Extends the EA ontology with W3C RDF Data Cube (qb:), PROV-O (prov:),
+# DCAT v3 (dcat:), and SKOS vocabulary to model KPIs, BEx/HANA/PBI report
+# lineage, and the Power BI → BDC/SAC/NEXUS rationalisation workflow.
+#
+# Load into Stardog as named graph: urn:SAP_Migration
+# =============================================================================
+
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov:  <http://www.w3.org/ns/prov#> .
+@prefix dcat:  <http://www.w3.org/ns/dcat#> .
+@prefix qb:    <http://purl.org/linked-data/cube#> .
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+
+@prefix kpi:   <https://ontology.ea.example.org/kpi#> .
+@prefix mig:   <https://ontology.ea.example.org/migration#> .
+@prefix bw:    <https://ontology.ea.example.org/bw#> .
+
+
+# ── Ontology declaration ─────────────────────────────────────────────────────
+
+<https://ontology.ea.example.org/sap-migration>
+    a owl:Ontology ;
+    rdfs:label "NEXUS SAP Migration + KPI Ontology" ;
+    owl:versionInfo "1.0.0" ;
+    rdfs:comment "KPI semantic layer (qb/prov/dcat) and PBI rationalisation workflow (mig:) for the BW→BDC/SAC/NEXUS migration programme." .
+
+
+# =============================================================================
+# KPI NAMESPACE  (kpi:)
+# Models BEx RKF/CKF/Variables, HANA CVs, DAX measures and their lineage.
+# =============================================================================
+
+# ── Core KPI classes ─────────────────────────────────────────────────────────
+
+kpi:KPI
+    a owl:Class ;
+    rdfs:subClassOf qb:MeasureProperty ;
+    rdfs:label "KPI" ;
+    rdfs:comment "A business key performance indicator — a named, owned, versioned measure with approved definition and data lineage." .
+
+kpi:CalculatedMeasure
+    a owl:Class ;
+    rdfs:subClassOf kpi:KPI ;
+    rdfs:label "Calculated Measure" ;
+    rdfs:comment "A KPI whose value is derived by a formula (BEx CKF, DAX CALCULATE, SAC advanced formula, SQL expression)." .
+
+kpi:RestrictedMeasure
+    a owl:Class ;
+    rdfs:subClassOf kpi:KPI ;
+    rdfs:label "Restricted Measure" ;
+    rdfs:comment "A KPI scoped by a dimension filter (BEx RKF, SAC restricted measure, SQL WHERE)." .
+
+kpi:Variable
+    a owl:Class ;
+    rdfs:label "KPI Variable" ;
+    rdfs:comment "A runtime parameter on a KPI or query (BEx manual/SAP-exit/customer-exit variable, SAC story prompt, Databricks bind parameter)." .
+
+kpi:Parameter
+    a owl:Class ;
+    rdfs:label "KPI Parameter" ;
+    rdfs:comment "A design-time input parameter on a HANA Calculation View or Datasphere analytic model." .
+
+kpi:DataProduct
+    a owl:Class ;
+    rdfs:subClassOf dcat:Dataset ;
+    rdfs:label "Data Product" ;
+    rdfs:comment "A governed, discoverable data asset (Databricks Unity Catalog table/view, Datasphere analytic model, SAC live model) that provides KPI values." .
+
+kpi:Report
+    a owl:Class ;
+    rdfs:subClassOf dcat:Dataset ;
+    rdfs:label "Report" ;
+    rdfs:comment "A BI report artefact (Power BI report, SAC story, BEx workbook)." .
+
+kpi:ReportPage
+    a owl:Class ;
+    rdfs:label "Report Page" ;
+    rdfs:comment "A single page or canvas within a Report." .
+
+kpi:Hierarchy
+    a owl:Class ;
+    rdfs:label "Hierarchy" ;
+    rdfs:comment "A named dimensional hierarchy (product, organisation, geography). Nodes linked via skos:broader/skos:narrower." .
+
+kpi:Owner
+    a owl:Class ;
+    rdfs:subClassOf prov:Agent ;
+    rdfs:label "KPI Owner" ;
+    rdfs:comment "The person or team accountable for a KPI definition and its data quality." .
+
+kpi:Transformation
+    a owl:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Transformation" ;
+    rdfs:comment "A data transformation step (Power Query M step, Datasphere data flow, Databricks notebook/Lakeflow pipeline)." .
+
+
+# ── KPI object properties ────────────────────────────────────────────────────
+
+kpi:residesIn
+    a owl:ObjectProperty ;
+    rdfs:domain kpi:KPI ;
+    rdfs:range  kpi:DataProduct ;
+    rdfs:label  "resides in" ;
+    rdfs:comment "The data product (analytic model / Delta table) where this KPI's values are physically stored." .
+
+kpi:satisfies
+    a owl:ObjectProperty ;
+    rdfs:domain kpi:DataProduct ;
+    rdfs:range  kpi:KPI ;
+    rdfs:label  "satisfies" ;
+    rdfs:comment "This data product provides values for the named KPI." .
+
+kpi:hasRestriction
+    a owl:ObjectProperty ;
+    rdfs:domain kpi:RestrictedMeasure ;
+    rdfs:range  skos:Concept ;
+    rdfs:label  "has restriction" ;
+    rdfs:comment "The dimension member (SKOS concept) that scopes this restricted measure." .
+
+kpi:displays
+    a owl:ObjectProperty ;
+    rdfs:domain kpi:Report ;
+    rdfs:range  kpi:KPI ;
+    rdfs:label  "displays" ;
+    rdfs:comment "This report visualises the named KPI." .
+
+
+# ── KPI datatype properties ──────────────────────────────────────────────────
+
+kpi:expression
+    a owl:DatatypeProperty ;
+    rdfs:domain kpi:CalculatedMeasure ;
+    rdfs:range  xsd:string ;
+    rdfs:label  "expression" ;
+    rdfs:comment "The formula defining this calculated measure (DAX expression, SQL expression, SAC advanced formula)." .
+
+kpi:targetCurrency
+    a owl:DatatypeProperty ;
+    rdfs:domain kpi:KPI ;
+    rdfs:range  xsd:string ;
+    rdfs:label  "target currency" ;
+    rdfs:comment "ISO 4217 currency code to which values are converted (e.g. USD, GBP)." .
+
+kpi:fiscalVariant
+    a owl:DatatypeProperty ;
+    rdfs:domain kpi:KPI ;
+    rdfs:range  xsd:string ;
+    rdfs:label  "fiscal variant" ;
+    rdfs:comment "SAP fiscal year variant (e.g. K4 = calendar year, V3 = Apr–Mar)." .
+
+kpi:source
+    a owl:DatatypeProperty ;
+    rdfs:domain kpi:Variable ;
+    rdfs:range  xsd:string ;
+    rdfs:label  "source" ;
+    rdfs:comment "Variable derivation type: manual, exit, replacement-path, prompt." .
+
+kpi:databricksTable
+    a owl:DatatypeProperty ;
+    rdfs:domain kpi:DataProduct ;
+    rdfs:range  xsd:string ;
+    rdfs:label  "Databricks table" ;
+    rdfs:comment "Fully-qualified Unity Catalog table name: catalog.schema.table." .
+
+kpi:weeklyViewers
+    a owl:DatatypeProperty ;
+    rdfs:domain kpi:Report ;
+    rdfs:range  xsd:integer ;
+    rdfs:label  "weekly viewers" ;
+    rdfs:comment "Distinct viewer count from PBI Activity Log (rolling 90-day window)." .
+
+kpi:daxMeasureCount
+    a owl:DatatypeProperty ;
+    rdfs:domain kpi:Report ;
+    rdfs:range  xsd:integer ;
+    rdfs:label  "DAX measure count" .
+
+kpi:isGxP
+    a owl:DatatypeProperty ;
+    rdfs:domain kpi:Report ;
+    rdfs:range  xsd:boolean ;
+    rdfs:label  "is GxP" ;
+    rdfs:comment "True if this report or its source data falls under GxP / 21 CFR Part 11 regulation." .
+
+
+# =============================================================================
+# MIGRATION NAMESPACE  (mig:)
+# Models the PBI rationalisation workflow: inventory → score → dispose → wave.
+# =============================================================================
+
+# ── Core migration classes ───────────────────────────────────────────────────
+
+mig:LegacyReport
+    a owl:Class ;
+    rdfs:subClassOf dcat:Dataset ;
+    rdfs:label "Legacy Report" ;
+    rdfs:comment "A Power BI report on BW/BW4HANA that is being assessed for migration." .
+
+mig:Disposition
+    a owl:Class ;
+    rdfs:label "Disposition" ;
+    rdfs:comment "Abstract class. Subclasses represent the four migration destinations." .
+
+mig:Retire
+    a owl:Class ;
+    rdfs:subClassOf mig:Disposition ;
+    rdfs:label "Retire" ;
+    rdfs:comment "Report has zero usage or is fully duplicated — archive and remove." .
+
+mig:ToNEXUS
+    a owl:Class ;
+    rdfs:subClassOf mig:Disposition ;
+    rdfs:label "To NEXUS" ;
+    rdfs:comment "Report questions are metadata/KPI-definition/lineage style — route to NEXUS conversational AI." .
+
+mig:ToSAC
+    a owl:Class ;
+    rdfs:subClassOf mig:Disposition ;
+    rdfs:label "To SAC" ;
+    rdfs:comment "Executive / live SAP data / planning workload — route to SAP Analytics Cloud on Datasphere." .
+
+mig:ToBDCDatabricks
+    a owl:Class ;
+    rdfs:subClassOf mig:Disposition ;
+    rdfs:label "To BDC + Databricks" ;
+    rdfs:comment "Large-volume analytics, ML, or non-SAP join workload — route to SAP BDC + Databricks." .
+
+mig:Wave
+    a owl:Class ;
+    rdfs:label "Migration Wave" ;
+    rdfs:comment "A time-boxed batch of reports migrated together, aligned to an S/4 functional cutover wave." .
+
+mig:ParityTest
+    a owl:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Parity Test" ;
+    rdfs:comment "Numeric comparison between source BW values and target platform values for the same query and period. Pass = ≤0.5% variance." .
+
+mig:CompetencyQuestion
+    a owl:Class ;
+    rdfs:label "Competency Question" ;
+    rdfs:comment "A natural-language question the NEXUS graph must be able to answer for a ToNEXUS-approved report." .
+
+
+# ── Migration object properties ──────────────────────────────────────────────
+
+mig:proposedDisposition
+    a owl:ObjectProperty ;
+    rdfs:domain mig:LegacyReport ;
+    rdfs:range  mig:Disposition ;
+    rdfs:label  "proposed disposition" ;
+    rdfs:comment "System-proposed migration destination, derived from rubric scoring." .
+
+mig:approvedDisposition
+    a owl:ObjectProperty ;
+    rdfs:domain mig:LegacyReport ;
+    rdfs:range  mig:Disposition ;
+    rdfs:label  "approved disposition" ;
+    rdfs:comment "Domain Lead-approved migration destination. Supersedes proposed." .
+
+mig:scheduledIn
+    a owl:ObjectProperty ;
+    rdfs:domain mig:LegacyReport ;
+    rdfs:range  mig:Wave ;
+    rdfs:label  "scheduled in" .
+
+mig:hasParityTest
+    a owl:ObjectProperty ;
+    rdfs:domain mig:LegacyReport ;
+    rdfs:range  mig:ParityTest ;
+    rdfs:label  "has parity test" .
+
+mig:hasCompetencyQuestion
+    a owl:ObjectProperty ;
+    rdfs:domain mig:LegacyReport ;
+    rdfs:range  mig:CompetencyQuestion ;
+    rdfs:label  "has competency question" .
+
+mig:sourcedFrom
+    a owl:ObjectProperty ;
+    rdfs:domain mig:LegacyReport ;
+    rdfs:range  bw:InfoProvider ;
+    rdfs:label  "sourced from" ;
+    rdfs:comment "The BW InfoProvider this report's data is sourced from." .
+
+
+# ── Migration datatype properties ────────────────────────────────────────────
+
+mig:dispositionScore
+    a owl:DatatypeProperty ;
+    rdfs:domain mig:LegacyReport ;
+    rdfs:range  xsd:decimal ;
+    rdfs:label  "disposition score" ;
+    rdfs:comment "Weighted rubric score (0.0–5.0) from the 10-criterion assessment." .
+
+mig:workspace
+    a owl:DatatypeProperty ;
+    rdfs:domain mig:LegacyReport ;
+    rdfs:range  xsd:string ;
+    rdfs:label  "PBI workspace" .
+
+mig:hasParityResult
+    a owl:DatatypeProperty ;
+    rdfs:domain mig:ParityTest ;
+    rdfs:range  xsd:boolean ;
+    rdfs:label  "parity passed" ;
+    rdfs:comment "True if numeric variance was ≤0.5% against frozen BW baseline." .
+
+mig:variancePct
+    a owl:DatatypeProperty ;
+    rdfs:domain mig:ParityTest ;
+    rdfs:range  xsd:decimal ;
+    rdfs:label  "variance %" .
+
+mig:waveLabel
+    a owl:DatatypeProperty ;
+    rdfs:domain mig:Wave ;
+    rdfs:range  xsd:string ;
+    rdfs:label  "wave label" ;
+    rdfs:comment "e.g. Wave-1-Finance, Wave-2-SCM" .
+
+mig:waveStartDate
+    a owl:DatatypeProperty ;
+    rdfs:domain mig:Wave ;
+    rdfs:range  xsd:date .
+
+mig:waveEndDate
+    a owl:DatatypeProperty ;
+    rdfs:domain mig:Wave ;
+    rdfs:range  xsd:date .
+
+
+# =============================================================================
+# SAP BW NAMESPACE  (bw:)
+# Lightweight reference nodes for BW source inventory.
+# =============================================================================
+
+bw:InfoProvider
+    a owl:Class ;
+    rdfs:label "BW InfoProvider" ;
+    rdfs:comment "SAP BW InfoProvider (InfoCube, DSO, CompositeProvider, MultiProvider)." .
+
+bw:InfoCube
+    a owl:Class ;
+    rdfs:subClassOf bw:InfoProvider ;
+    rdfs:label "BW InfoCube" .
+
+bw:BExQuery
+    a owl:Class ;
+    rdfs:label "BEx Query" ;
+    rdfs:comment "An SAP BEx query (RSDWC_QUERY) defined on a BW InfoProvider." .
+
+bw:technicalName
+    a owl:DatatypeProperty ;
+    rdfs:domain bw:InfoProvider ;
+    rdfs:range  xsd:string ;
+    rdfs:label  "technical name" ;
+    rdfs:comment "SAP technical name, e.g. ZSD_C03." .
+
+
+# =============================================================================
+# SHACL SHAPES  — graph completeness constraints
+# =============================================================================
+
+# Every approved ToNEXUS report must have at least one competency question.
+kpi:ToNEXUSShape
+    a sh:NodeShape ;
+    sh:targetClass mig:ToNEXUS ;
+    sh:property [
+        sh:path     mig:hasCompetencyQuestion ;
+        sh:minCount 1 ;
+        sh:message  "Every ToNEXUS report MUST have at least one mig:CompetencyQuestion." ;
+    ] .
+
+# Every CalculatedMeasure must declare its expression.
+kpi:CalculatedMeasureShape
+    a sh:NodeShape ;
+    sh:targetClass kpi:CalculatedMeasure ;
+    sh:property [
+        sh:path     kpi:expression ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message  "Every kpi:CalculatedMeasure MUST have a non-empty kpi:expression." ;
+    ] .
+
+# Every KPI must be attributed to an owner.
+kpi:KPIOwnerShape
+    a sh:NodeShape ;
+    sh:targetClass kpi:KPI ;
+    sh:property [
+        sh:path     prov:wasAttributedTo ;
+        sh:minCount 1 ;
+        sh:message  "Every kpi:KPI MUST have prov:wasAttributedTo a kpi:Owner." ;
+    ] .
+
+# Every DataProduct must declare a distribution (access URL).
+kpi:DataProductShape
+    a sh:NodeShape ;
+    sh:targetClass kpi:DataProduct ;
+    sh:property [
+        sh:path     dcat:distribution ;
+        sh:minCount 1 ;
+        sh:message  "Every kpi:DataProduct MUST have dcat:distribution." ;
+    ] .

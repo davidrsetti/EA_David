@@ -18,6 +18,7 @@ from openai import OpenAI
 from nexus.config.settings import settings
 from nexus.config.ontology_prefixes import PREFIXES, SPARQL_PREFIX_BLOCK
 from nexus.core.ontology import get_ontology
+from nexus.core.sparql_feedback import build_feedback_prompt_section
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +182,24 @@ Examples:
 - NEVER search on rdfs:label alone to find typed entities — always assert the rdf:type first.
 - NEVER filter on ?techLabel to infer what a technology does — use capability labels instead.
 
+KPI AND NUMERIC DATA QUESTIONS:
+When the question asks for numeric business values (revenue, sales, coaching days, headcount,
+top-N rankings, trends, KPI values), the data lives in Databricks, not in the graph.
+The graph holds metadata: which table to query.
+Generate SPARQL that finds the authorised kpi:DataProduct for the topic:
+
+  PREFIX kpi:  <https://ontology.ea.example.org/kpi#>
+  PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+  SELECT ?dp ?label ?table WHERE {{
+    ?dp a kpi:DataProduct ;
+        rdfs:label ?label ;
+        kpi:databricksTable ?table .
+    FILTER(CONTAINS(LCASE(?label), "<key term>") || CONTAINS(LCASE(?table), "<key term>"))
+  }} LIMIT 5
+
+The answer engine will then call Databricks SQL using the returned table name.
+Do NOT generate SPARQL that tries to retrieve actual numeric values from the graph.
+
 RULES:
 1. Use rdfs:label for human-readable names and text filtering unless the ontology explicitly requires another predicate.
 2. Never use ea:name for user-facing filtering when rdfs:label is available.
@@ -220,6 +239,10 @@ RULES:
       }} ORDER BY ?cap ?app
     — ?a is scoped to the subquery; ?app is the outer variable. Never reuse the same name for both.
 """
+
+    feedback_section = build_feedback_prompt_section()
+    if feedback_section:
+        system = system + f"\n\n{feedback_section}"
 
     logger.debug("nl_to_sparql: question=%r model=%s", question, settings.openai.sparql_model)
 

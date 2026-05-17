@@ -151,6 +151,7 @@ def tool_call_loop(
     user_role: str = "analyst",
     session_id: str = "",
     max_iterations: int = 6,
+    kpi_hint: str = "",
 ) -> tuple[str, list[str]]:
     """
     Run a multi-hop Claude reasoning loop with tool_use.
@@ -166,12 +167,14 @@ def tool_call_loop(
     preview = json.dumps(result_rows[:30], indent=2)
     shown   = min(30, len(result_rows))
 
+    kpi_section = f"\n\nNOTE: {kpi_hint}" if kpi_hint else ""
     user_content = (
         f"Question: {question}\n\n"
         f"Initial SPARQL: {sparql}\n\n"
         f"Result columns: {', '.join(columns)}\n"
         f"Total results: {total_count} (showing first {shown})\n\n"
         f"Results:\n{preview}"
+        f"{kpi_section}"
     )
 
     messages: list[dict] = [{"role": "user", "content": user_content}]

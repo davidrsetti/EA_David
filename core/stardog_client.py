@@ -114,6 +114,42 @@ class StardogClient:
         self._raise_for_status(resp)
         return True
 
+    # ── GRAPH STORE (load Turtle into named graph) ────────────────
+
+    def load_turtle(self, turtle_content: str, graph_uri: str) -> bool:
+        """
+        Load Turtle RDF content into a named graph via Stardog's Graph Store Protocol.
+        Uses PUT (replace) so the operation is idempotent.
+        graph_uri example: 'urn:SAP_Migration'
+        """
+        # Graph Store endpoint: strip /query suffix, add ?graph-uri=<uri>
+        gs_base = self._endpoint.replace("/query", "")
+        url     = f"{gs_base}?graph-uri={graph_uri}"
+        logger.debug("GRAPH STORE PUT %s (%d bytes)", url, len(turtle_content))
+
+        headers = {
+            **self._headers("application/json"),
+            "Content-Type": "text/turtle",
+        }
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                resp = self._session.put(
+                    url,
+                    data=turtle_content.encode("utf-8"),
+                    headers=headers,
+                    verify=self._verify,
+                    timeout=max(self._timeout, 60),
+                )
+                self._raise_for_status(resp)
+                return True
+            except (requests.exceptions.SSLError,
+                    requests.exceptions.ConnectionError) as exc:
+                last_exc = exc
+                self._session.close()
+                self._session = _build_session()
+        raise StardogError(f"load_turtle failed after 3 attempts: {last_exc}")
+
     # ── EXPLAIN (query plan / complexity check) ────────────────────
 
     def explain(self, sparql: str) -> str:

@@ -104,4 +104,6 @@ TAB_LABELS = [
     f"{mat('fact_check')}  Audit",
     f"{mat('robot_2')}  Agent Tasks",
     f"{mat('move_group')}  Report Migration",
+    f"{mat('bar_chart_4_bars')}  Business KPIs",
+    f"{mat('map')}  Gap & Roadmap",
 ]

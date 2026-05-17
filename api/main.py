@@ -1193,3 +1193,356 @@ SELECT ?disposition (COUNT(?r) AS ?count) WHERE {
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/v1/migration/load-ontology", tags=["Report Migration"])
+def migration_load_ontology():
+    """
+    Load the SAP Migration + KPI ontology TTL into Stardog as named graph urn:SAP_Migration.
+    Idempotent — PUT replaces any prior version.
+    """
+    import os
+    from nexus.core.stardog_client import get_stardog
+
+    ttl_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..", "domains", "sap_migration_ontology.ttl",
+    )
+    ttl_path = os.path.normpath(ttl_path)
+
+    if not os.path.exists(ttl_path):
+        raise HTTPException(status_code=404, detail=f"Ontology file not found: {ttl_path}")
+
+    with open(ttl_path, "r", encoding="utf-8") as f:
+        turtle_content = f.read()
+
+    try:
+        db = get_stardog()
+        db.load_turtle(turtle_content, "urn:SAP_Migration")
+        return {"status": "ok", "graph": "urn:SAP_Migration", "bytes": len(turtle_content)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/v1/migration/validate", tags=["Report Migration"])
+def migration_validate(shapes: Optional[str] = Query(default=None, description="Comma-separated shape IDs to run, e.g. S1,S3. Omit for all.")):
+    """
+    Run SHACL-equivalent constraint checks on the migration + KPI graph.
+    Returns per-shape pass/fail results with violation details.
+    """
+    from nexus.core.shacl_validator import validate
+
+    shape_ids = [s.strip() for s in shapes.split(",")] if shapes else None
+    try:
+        report = validate(shape_ids)
+        return {
+            "passed":       report.passed,
+            "summary":      report.summary(),
+            "total_shapes": report.total_shapes,
+            "pass_count":   report.pass_count,
+            "fail_count":   report.fail_count,
+            "error_count":  report.error_count,
+            "shapes": [
+                {
+                    "shape_id":       r.shape_id,
+                    "label":          r.label,
+                    "severity":       r.severity,
+                    "passed":         r.passed,
+                    "violation_count": len(r.violations),
+                    "violations": [
+                        {"subject": v.subject, "label": v.label}
+                        for v in r.violations[:20]
+                    ],
+                    "error": r.error,
+                }
+                for r in report.shape_results
+            ],
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/v1/migration/config", tags=["Report Migration"])
+def migration_config():
+    """Return migration-relevant config values (no secrets)."""
+    from nexus.config.settings import settings
+    return {"sample_table": settings.databricks.sample_table}
+
+
+class DataProductRequest(BaseModel):
+    table:       str = Field(description="Fully-qualified Databricks table: catalog.schema.table")
+    label:       str = Field(default="", description="Human-readable name; defaults to table name")
+    description: str = Field(default="")
+    kpi_label:   str = Field(default="", description="Optional: name of the kpi:KPI this product satisfies")
+
+
+@app.post("/v1/migration/register-data-product", tags=["Report Migration"])
+def migration_register_data_product(req: DataProductRequest):
+    """
+    Register a Databricks table as a kpi:DataProduct in the NEXUS graph.
+    Asserts type, label, description, dcat:distribution (JDBC URI), and optional
+    kpi:KPI link. Idempotent — re-running overwrites the previous assertion.
+    """
+    from nexus.core.stardog_client import get_stardog
+    from nexus.config.settings import settings
+
+    table   = req.table.strip()
+    label   = req.label.strip() or table.split(".")[-1]
+    desc    = req.description.strip()
+    host    = settings.databricks.host
+    path    = settings.databricks.http_path
+
+    safe_name = table.replace(".", "_").replace(" ", "_")
+    KPI_BASE  = "https://ontology.ea.example.org/kpi#"
+    dp_uri    = f"<{KPI_BASE}DataProduct_{safe_name}>"
+    jdbc_uri  = f"jdbc:databricks://{host}:443;httpPath={path};catalog={table.split('.')[0]};schema={table.split('.')[1]}"
+    dist_uri  = f"<{KPI_BASE}Distribution_{safe_name}>"
+
+    desc_triple = f'\n    rdfs:comment "{desc}" ;' if desc else ""
+
+    kpi_triple = ""
+    if req.kpi_label.strip():
+        safe_kpi   = req.kpi_label.strip().replace(" ", "_")
+        kpi_uri    = f"<{KPI_BASE}KPI_{safe_kpi}>"
+        kpi_triple = f"\n    kpi:satisfies {kpi_uri} ;"
+
+    sparql = f"""PREFIX kpi:  <{KPI_BASE}>
+PREFIX dcat: <http://www.w3.org/ns/dcat#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+
+DELETE {{ {dp_uri} ?p ?o }} WHERE {{ {dp_uri} ?p ?o }} ;
+
+INSERT DATA {{
+    {dp_uri} a kpi:DataProduct, dcat:Dataset ;
+        rdfs:label "{label}" ;{desc_triple}{kpi_triple}
+        kpi:databricksTable "{table}" ;
+        dcat:distribution {dist_uri} .
+
+    {dist_uri} a dcat:Distribution ;
+        dcat:accessURL "{jdbc_uri}"^^xsd:anyURI ;
+        dcat:mediaType "application/x-databricks-sql" .
+}}"""
+
+    try:
+        db = get_stardog()
+        db.update(sparql)
+        return {"data_product_uri": dp_uri.strip("<>"), "table": table, "label": label}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Phase 2: Business Semantic Layer ────────────────────────────────────
+
+@app.get("/v1/bsl/kpis", tags=["BSL"])
+async def bsl_list_kpis(
+    domain: str = Query("", description="Filter by domain name"),
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    from nexus.core.bsl_engine import list_kpis
+    try:
+        kpis = list_kpis(domain=domain)
+        return {"kpis": [vars(k) for k in kpis], "total": len(kpis)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/v1/bsl/evaluate", tags=["BSL"])
+async def bsl_evaluate_kpi(
+    body: dict = Body(...),
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    from nexus.core.bsl_engine import evaluate_kpi, evaluate_all_kpis
+    kpi_uri = body.get("kpi_uri", "")
+    domain  = body.get("domain", "")
+    try:
+        if kpi_uri:
+            result = evaluate_kpi(kpi_uri)
+            return vars(result)
+        else:
+            results = evaluate_all_kpis(domain=domain)
+            return {"results": [vars(r) for r in results], "total": len(results)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/v1/bsl/rules", tags=["BSL"])
+async def bsl_list_rules(
+    domain: str = Query(""),
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    from nexus.core.bsl_engine import list_rules
+    try:
+        rules = list_rules(domain=domain)
+        return {"rules": [vars(r) for r in rules], "total": len(rules)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/v1/bsl/check-rules", tags=["BSL"])
+async def bsl_check_rules(
+    body: dict = Body(default={}),
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    from nexus.core.bsl_engine import check_rules
+    try:
+        violations = check_rules(
+            entity_uri=body.get("entity_uri", ""),
+            domain=body.get("domain", ""),
+        )
+        return {"violations": [vars(v) for v in violations], "total": len(violations)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Phase 3: Gap Analysis, Roadmap, Scenario ─────────────────────────────
+
+@app.post("/v1/gap/analyze", tags=["Gap & Roadmap"])
+async def gap_analyze(
+    body: dict = Body(default={}),
+    user: AuthenticatedUser = Depends(require_role("analyst", "admin", "data-steward")),
+):
+    from nexus.core.gap_analyzer import run_full_gap_analysis
+    try:
+        result = run_full_gap_analysis(user_role=user.role)
+        return {
+            "analyzed_at":   result.analyzed_at,
+            "total_gaps":    result.total_gaps,
+            "by_category":   result.by_category,
+            "summary":       result.summary,
+            "gaps": [vars(g) for g in result.gaps],
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/v1/roadmap/generate", tags=["Gap & Roadmap"])
+async def roadmap_generate(
+    body: dict = Body(...),
+    user: AuthenticatedUser = Depends(require_role("analyst", "admin", "data-steward")),
+):
+    from nexus.core.gap_analyzer    import run_full_gap_analysis
+    from nexus.core.roadmap_generator import generate_roadmap
+    try:
+        gap  = run_full_gap_analysis(user_role=user.role)
+        road = generate_roadmap(
+            gap_analysis    = gap,
+            horizon_months  = int(body.get("horizon_months", 18)),
+            constraints     = body.get("constraints", ""),
+        )
+        phases_out = {}
+        for ph, inits in road.phases.items():
+            phases_out[str(ph)] = [vars(i) for i in inits]
+        return {
+            "generated_at":       road.generated_at,
+            "horizon_months":     road.horizon_months,
+            "total_initiatives":  road.total_initiatives,
+            "executive_summary":  road.executive_summary,
+            "phases":             phases_out,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/v1/scenario/run", tags=["Gap & Roadmap"])
+async def scenario_run(
+    body: dict = Body(...),
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    from nexus.core.scenario_engine import run_scenario
+    entity = body.get("entity", "")
+    action = body.get("action", "decommission")
+    if not entity:
+        raise HTTPException(status_code=422, detail="entity is required")
+    try:
+        result = run_scenario(
+            entity    = entity,
+            action    = action,
+            params    = body.get("params"),
+            user_role = user.role,
+        )
+        return vars(result)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Phase 4: KG Population & Validation ─────────────────────────────────
+
+@app.post("/v1/kg/validate", tags=["KG Operations"])
+async def kg_validate(
+    user: AuthenticatedUser = Depends(require_role("admin", "data-steward")),
+):
+    from nexus.core.kg_validator import run_full_validation
+    try:
+        report = run_full_validation()
+        return {
+            "validated_at":  report.validated_at,
+            "total_issues":  report.total_issues,
+            "by_severity":   report.by_severity,
+            "by_category":   report.by_category,
+            "passed":        report.passed,
+            "shacl_summary": report.shacl_summary,
+            "issues": [vars(i) for i in report.issues],
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/v1/kg/populate", tags=["KG Operations"])
+async def kg_populate(
+    body: dict = Body(...),
+    user: AuthenticatedUser = Depends(require_role("admin", "data-steward")),
+):
+    from nexus.core.kg_populator import populate_from_records, SUPPORTED_TYPES
+    entity_type = body.get("entity_type", "")
+    records     = body.get("records", [])
+    field_map   = body.get("field_map", {})
+    if entity_type not in SUPPORTED_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"entity_type must be one of: {list(SUPPORTED_TYPES.keys())}",
+        )
+    if not records:
+        raise HTTPException(status_code=422, detail="records list is required")
+    try:
+        result = populate_from_records(records, entity_type, field_map, source_label="api")
+        return vars(result)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Phase 5: Semantic Search ─────────────────────────────────────────────
+
+@app.get("/v1/search/semantic", tags=["Semantic Search"])
+async def semantic_search(
+    q: str = Query(..., description="Natural language search query"),
+    top_k: int = Query(5, ge=1, le=20),
+    entity_type: str = Query("", description="Optional type filter e.g. app:Application"),
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    from nexus.core.vector_store import get_vector_store
+    vs = get_vector_store()
+    if vs.size() == 0:
+        return {"results": [], "message": "Vector store is empty. POST /v1/search/index to build it."}
+    try:
+        results = vs.search(q, top_k=top_k, entity_type_filter=entity_type)
+        return {"results": [vars(r) for r in results], "total": len(results)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/v1/search/index", tags=["Semantic Search"])
+async def semantic_index(
+    body: dict = Body(default={}),
+    user: AuthenticatedUser = Depends(require_role("admin", "data-steward")),
+):
+    from nexus.core.vector_store import get_vector_store
+    vs = get_vector_store()
+    try:
+        count = vs.index_from_graph(
+            entity_types=body.get("entity_types"),
+            limit=int(body.get("limit", 500)),
+        )
+        return {"indexed": count, "store_size": vs.size()}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
