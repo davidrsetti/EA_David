@@ -102,4 +102,5 @@ TAB_LABELS = [
     f"{mat('bolt')}  Change Impact",
     f"{mat('smart_toy')}  AI Governance",
     f"{mat('fact_check')}  Audit",
+    f"{mat('robot_2')}  Agent Tasks",
 ]

@@ -177,7 +177,7 @@ st.markdown(
 )
 
 # ── Main tabs ─────────────────────────────────────────────────────────
-tab_chat, tab_guided_sa, tab_sa, tab_data, tab_portfolio, tab_sa_health, tab_diagram, tab_impact, tab_ai_gov, tab_audit = st.tabs(TAB_LABELS)
+tab_chat, tab_guided_sa, tab_sa, tab_data, tab_portfolio, tab_sa_health, tab_diagram, tab_impact, tab_ai_gov, tab_audit, tab_agent_tasks = st.tabs(TAB_LABELS)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -264,12 +264,14 @@ with tab_chat:
         from nexus.agents.guard        import check_intent, build_security_filter
         from nexus.core.nl_to_sparql   import nl_to_sparql
         from nexus.core.stardog_client  import get_stardog
-        from nexus.core.answer_engine   import synthesise
+        from nexus.core.answer_engine   import synthesise_full
         from nexus.audit.logger         import log_query, log_guard_event
         from nexus.audit.pii_scanner    import scan_and_redact
         from nexus.config.settings      import settings as _s
 
-        t0 = time.monotonic()
+        t0         = time.monotonic()
+        session_id = st.session_state.get("session_id", "")
+
         with st.chat_message("assistant", avatar=":material/hub:"):
             status = st.empty()
 
@@ -293,6 +295,7 @@ with tab_chat:
                     question, clarification_context=clarification_context,
                     user_role=user_role, use_virtual_graph=use_virtual,
                     extra_filters=sec.sparql_data_filter,
+                    session_id=session_id,
                 )
             except Exception as exc:
                 msg = f"SPARQL generation failed: {exc}"
@@ -324,11 +327,33 @@ with tab_chat:
             classifications = list({r.get("classification", "") for r in rows if r.get("classification")})
 
             status.markdown("Synthesising answer...")
-            answer  = synthesise(question, columns, scan.redacted_rows, sparql, total)
+            result  = synthesise_full(
+                question, columns, scan.redacted_rows, sparql, total,
+                user_role=user_role, session_id=session_id,
+            )
+            answer  = result.answer
             latency = int((time.monotonic() - t0) * 1000)
-            log_query("ui-user", user_role, st.session_state.session_id, question, sparql,
-                      len(rows), columns, classifications, latency, _s.openai.answer_model,
+
+            model_used = (
+                _s.anthropic.answer_model if _s.anthropic.enabled
+                else _s.openai.answer_model
+            )
+            log_query("ui-user", user_role, session_id, question, sparql,
+                      len(rows), columns, classifications, latency, model_used,
                       pii_detected=scan.pii_found)
+
+            # Persist turn for multi-turn context
+            if session_id:
+                try:
+                    from nexus.agents.session import store_turn, get_session_context, update_session
+                    ctx   = get_session_context(session_id)
+                    tnum  = ctx.get("turn_count", 0) + 1
+                    focus = [r.get("uri") or r.get("app") or "" for r in scan.redacted_rows[:5] if isinstance(r, dict)]
+                    focus = [f for f in focus if f.startswith("http") or f.startswith("urn")]
+                    update_session(session_id, question, focus, tnum)
+                    store_turn(session_id, tnum, question, answer[:2000])
+                except Exception:
+                    pass
 
             status.empty()
             if scan.pii_found:
@@ -349,13 +374,28 @@ with tab_chat:
             st.caption(
                 f"{latency}ms · {total} rows"
                 + (" · PII redacted" if scan.pii_found else "")
-                + f" · complexity:{complexity} · {_s.openai.answer_model}"
+                + f" · complexity:{complexity} · {model_used}"
             )
+
+            # Follow-up suggestion chips
+            if result.suggestions:
+                st.markdown(
+                    '<div style="margin-top:.6rem;font-size:.72rem;font-weight:600;'
+                    'letter-spacing:.06em;text-transform:uppercase;color:#888;margin-bottom:.3rem">'
+                    'Follow-up questions</div>',
+                    unsafe_allow_html=True
+                )
+                chip_cols = st.columns(len(result.suggestions))
+                for ci, sug in enumerate(result.suggestions):
+                    if chip_cols[ci].button(sug, key=f"sug_{st.session_state.turn_count}_{ci}",
+                                            use_container_width=True):
+                        st.session_state["prefill"] = sug
+                        st.rerun()
 
             st.session_state.messages.append({
                 "role": "assistant", "content": answer,
                 "sparql": sparql, "rows": scan.redacted_rows[:50],
-                "row_count": total, "latency_ms": latency, "model": _s.openai.answer_model,
+                "row_count": total, "latency_ms": latency, "model": model_used,
             })
             st.session_state.turn_count += 1
 
@@ -1028,3 +1068,117 @@ with tab_audit:
         render_audit_tab(user_role=st.session_state.get("user_role", "analyst"))
     except Exception as _exc:
         st.error(f"Audit tab failed to load: {_exc}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# TAB 11 — AGENT TASKS (Multi-agent orchestration monitor)
+# ═══════════════════════════════════════════════════════════════════════
+with tab_agent_tasks:
+    from nexus.ui.theme import ORANGE, GREY_MUTED, GREY_LINE, NEAR_BLACK, WHITE, SURFACE_2
+
+    st.markdown(
+        '<div style="color:#777777;font-size:.72rem;font-weight:700;letter-spacing:.1em;'
+        'text-transform:uppercase;margin-bottom:.6rem">Autonomous Agent Tasks</div>',
+        unsafe_allow_html=True
+    )
+
+    # ── Submit new task ────────────────────────────────────────────
+    with st.expander("Submit New Orchestrator Task", expanded=True):
+        task_desc = st.text_area(
+            "Task description",
+            placeholder=(
+                "Describe a high-level EA task — e.g. 'Run a full portfolio health check, "
+                "identify top 5 Eliminate candidates, analyse their change impact, and create findings.'"
+            ),
+            height=100,
+            key="agent_task_desc",
+            label_visibility="collapsed",
+        )
+        if st.button("Submit Task →", use_container_width=False, key="agent_task_submit"):
+            if not task_desc.strip():
+                st.warning("Please enter a task description.")
+            elif not st.session_state.get("connected"):
+                st.warning("Connect to NEXUS first (sidebar).")
+            else:
+                try:
+                    from nexus.agents.orchestrator import submit_task
+                    tid = submit_task(
+                        description=task_desc.strip(),
+                        user_id="ui-user",
+                        user_role=st.session_state.get("user_role", "analyst"),
+                    )
+                    st.success(f"Task submitted: `{tid}` — refresh below to track progress.")
+                except Exception as _exc:
+                    st.error(f"Task submission failed: {_exc}")
+
+    st.divider()
+
+    # ── Task list ──────────────────────────────────────────────────
+    col_refresh, col_spacer = st.columns([1, 5])
+    with col_refresh:
+        refresh_tasks = st.button("Refresh Tasks", use_container_width=True, key="agent_task_refresh")
+
+    try:
+        from nexus.agents.orchestrator import list_tasks
+        tasks = list_tasks(user_id="ui-user", limit=20)
+    except Exception as _exc:
+        st.error(f"Could not load tasks: {_exc}")
+        tasks = []
+
+    STATUS_COLORS = {
+        "pending":   "#888888",
+        "running":   "#F36633",
+        "completed": "#22C55E",
+        "failed":    "#EF4444",
+        "cancelled": "#9CA3AF",
+    }
+
+    if not tasks:
+        st.markdown(
+            f'<div style="text-align:center;padding:2rem;color:{GREY_MUTED};font-size:.88rem">'
+            f'No tasks yet. Submit a task above to get started.</div>',
+            unsafe_allow_html=True
+        )
+    else:
+        for task in tasks:
+            status_color = STATUS_COLORS.get(task.get("status", ""), "#888")
+            sub_tasks    = task.get("sub_tasks", [])
+            with st.expander(
+                f"[{task.get('status','?').upper()}] {task.get('description','')[:80]}…  "
+                f"· {task.get('task_id','')}",
+                expanded=task.get("status") in ("running", "failed"),
+            ):
+                col_a, col_b = st.columns([1, 3])
+                with col_a:
+                    st.markdown(
+                        f'<div style="font-size:.72rem;font-weight:700;letter-spacing:.06em;'
+                        f'text-transform:uppercase;color:{status_color}">'
+                        f'{task.get("status","?").upper()}</div>'
+                        f'<div style="font-size:.75rem;color:{GREY_MUTED};margin-top:.2rem">'
+                        f'ID: <code>{task.get("task_id","")}</code></div>'
+                        f'<div style="font-size:.75rem;color:{GREY_MUTED}">'
+                        f'Created: {task.get("created_at","")[:19]}</div>'
+                        f'<div style="font-size:.75rem;color:{GREY_MUTED}">'
+                        f'Sub-calls: {len(sub_tasks)}</div>',
+                        unsafe_allow_html=True
+                    )
+                with col_b:
+                    if task.get("result"):
+                        st.markdown(task["result"][:2000])
+                    elif task.get("error"):
+                        st.error(task["error"])
+                    else:
+                        st.markdown(
+                            f'<div style="color:{GREY_MUTED};font-size:.85rem;font-style:italic">'
+                            f'Task is {task.get("status","pending")}…</div>',
+                            unsafe_allow_html=True
+                        )
+
+                if sub_tasks:
+                    with st.expander(f"Sub-agent calls ({len(sub_tasks)})", expanded=False):
+                        for i, st_item in enumerate(sub_tasks):
+                            st.markdown(
+                                f'**{i+1}. {st_item.get("tool","")}**  \n'
+                                f'Input: `{json.dumps(st_item.get("input",{}))[:120]}`  \n'
+                                f'Result: {str(st_item.get("result",""))[:200]}'
+                            )

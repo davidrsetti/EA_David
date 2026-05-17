@@ -130,5 +130,71 @@ def get_session_context(session_id: str) -> dict:
         return {}
 
 
+def get_conversation_history(session_id: str, max_turns: int = 5) -> list[dict]:
+    """
+    Return the last N turns as a list of {role, content} dicts suitable for
+    injection into a Claude messages array.  Returns [] if history is unavailable.
+    """
+    from nexus.core.stardog_client import get_stardog
+    db = get_stardog()
+
+    session_uri = f"{OPS_NS}{session_id}"
+    q = f"""
+    PREFIX ops:  <{OPS_NS}>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+    SELECT ?turnNum ?userQ ?assistantA WHERE {{
+        <{session_uri}> ops:hasTurn ?turn .
+        ?turn ops:turnNumber  ?turnNum ;
+              ops:userQuestion ?userQ .
+        OPTIONAL {{ ?turn ops:assistantAnswer ?assistantA }}
+    }} ORDER BY DESC(?turnNum) LIMIT {max_turns}
+    """
+    try:
+        _, rows = db.to_rows(db.query(q))
+        history: list[dict] = []
+        for row in reversed(rows):
+            if row.get("userQ"):
+                history.append({"role": "user",      "content": row["userQ"]})
+            if row.get("assistantA"):
+                history.append({"role": "assistant",  "content": row["assistantA"]})
+        return history
+    except Exception:
+        return []
+
+
+def store_turn(
+    session_id: str,
+    turn_number: int,
+    user_question: str,
+    assistant_answer: str,
+) -> None:
+    """Persist a completed turn in the graph for multi-turn history retrieval."""
+    from nexus.core.stardog_client import get_stardog
+    db = get_stardog()
+
+    session_uri = f"{OPS_NS}{session_id}"
+    turn_uri    = f"{session_uri}/turn/{turn_number}"
+    now         = datetime.now(timezone.utc).isoformat()
+
+    sparql = f"""
+PREFIX ops: <{OPS_NS}>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+INSERT DATA {{
+    <{turn_uri}> a ops:ConversationTurn ;
+        ops:turnNumber  {turn_number} ;
+        ops:userQuestion  "{_esc(user_question)}" ;
+        ops:assistantAnswer "{_esc(assistant_answer[:2000])}" ;
+        ops:turnAt "{now}"^^xsd:dateTime .
+    <{session_uri}> ops:hasTurn <{turn_uri}> .
+}}
+"""
+    try:
+        db.update(sparql)
+    except Exception as exc:
+        logger.warning("store_turn() failed (non-critical): %s", exc)
+
+
 def _esc(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"')

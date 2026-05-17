@@ -24,10 +24,14 @@ from __future__ import annotations
 import re
 import time
 import logging
+from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
+import json as _json
+import asyncio
 from fastapi import FastAPI, Depends, HTTPException, Body, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from nexus.api.auth import AuthenticatedUser, get_current_user, require_role
@@ -36,6 +40,21 @@ from nexus.config.settings import settings
 
 # Characters that can break out of SPARQL string interpolation
 _SPARQL_INJECTION_RE = re.compile(r"[}{#;]")
+
+_scheduler = None
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    global _scheduler
+    from nexus.agents.background_runner import start_scheduler
+    _scheduler = start_scheduler()
+    yield
+    if _scheduler:
+        try:
+            _scheduler.shutdown(wait=False)
+        except Exception:
+            pass
 
 
 def _safe_filter_param(value: str, param_name: str) -> str:
@@ -55,10 +74,11 @@ app = FastAPI(
     version="2.0.0",
     description=(
         "Semantic intelligence layer for enterprise AI, agents, and orchestration. "
-        "v2: SA Advisor, APM Agent, Artifact Creator."
+        "v2: SA Advisor, APM Agent, Artifact Creator, Multi-Agent Orchestration."
     ),
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=_lifespan,
 )
 
 app.add_middleware(RateLimitMiddleware)
@@ -94,6 +114,7 @@ class QueryResponse(BaseModel):
     redacted:        bool
     latency_ms:      int
     error:           str | None
+    suggestions:     list[str] = []
 
 
 class ContextRequest(BaseModel):
@@ -192,19 +213,137 @@ async def query(req: QueryRequest, user: AuthenticatedUser = Depends(get_current
     rows        = rows[:sec_filter.max_rows]
     scan        = scan_and_redact(rows, redact=True)
     classifications = list({r.get("classification", "") for r in rows if r.get("classification")})
-    answer      = synthesise(question, columns, scan.redacted_rows, sparql, total_count)
-    latency     = int((time.monotonic() - t0) * 1000)
+
+    from nexus.core.answer_engine import synthesise_full
+    result  = synthesise_full(
+        question, columns, scan.redacted_rows, sparql, total_count,
+        user_role=user.user_role, session_id=req.session_id,
+    )
+    latency = int((time.monotonic() - t0) * 1000)
+
+    model_used = (
+        settings.anthropic.answer_model if settings.anthropic.enabled
+        else settings.openai.answer_model
+    )
     log_query(user.user_id, user.user_role, req.session_id, question, sparql,
-              len(rows), columns, classifications, latency, settings.openai.answer_model,
+              len(rows), columns, classifications, latency, model_used,
               pii_detected=scan.pii_found)
 
+    # Persist turn for multi-turn history
+    if req.session_id:
+        try:
+            from nexus.agents.session import store_turn, get_session_context, update_session
+            ctx   = get_session_context(req.session_id)
+            tnum  = ctx.get("turn_count", 0) + 1
+            focus = [r.get("uri") or r.get("app") or "" for r in scan.redacted_rows[:5] if isinstance(r, dict)]
+            focus = [f for f in focus if f.startswith("http") or f.startswith("urn")]
+            update_session(req.session_id, question, focus, tnum)
+            store_turn(req.session_id, tnum, question, result.answer[:2000])
+        except Exception:
+            pass
+
     return QueryResponse(
-        question=question, sparql=sparql, answer=answer,
+        question=question, sparql=sparql, answer=result.answer,
         columns=columns, rows=scan.redacted_rows,
         row_count=len(scan.redacted_rows), total_count=total_count,
         pii_detected=scan.pii_found, redacted=scan.pii_found,
         latency_ms=latency, error=None,
+        suggestions=result.suggestions,
     )
+
+
+@app.post("/v1/query/stream", tags=["Query"])
+async def query_stream(req: QueryRequest, user: AuthenticatedUser = Depends(get_current_user)):
+    """
+    Streaming SSE variant of /v1/query.
+
+    Events:
+      event: stage    data: {"stage": "guard"|"sparql"|"synthesising"}
+      event: token    data: {"text": "..."}
+      event: meta     data: {"sparql": "...", "row_count": N, "latency_ms": N}
+      event: done     data: {}
+      event: error    data: {"error": "..."}
+    """
+    from nexus.agents.guard       import check_intent, build_security_filter
+    from nexus.core.nl_to_sparql  import nl_to_sparql
+    from nexus.core.stardog_client import get_stardog
+    from nexus.audit.pii_scanner   import scan_and_redact
+    from nexus.audit.logger        import log_guard_event
+    from nexus.config.settings     import settings as _s
+
+    def _sse(event: str, data: dict) -> str:
+        return f"event: {event}\ndata: {_json.dumps(data)}\n\n"
+
+    async def generate():
+        t0 = time.monotonic()
+        question = req.question.strip()
+
+        # Stage 1: Guard
+        yield _sse("stage", {"stage": "guard"})
+        guard = await asyncio.to_thread(check_intent, question, user.user_role)
+        log_guard_event(user.user_id, question, guard.allowed, guard.risk_level.value, guard.flags)
+        if not guard.allowed:
+            yield _sse("error", {"error": f"Blocked: {guard.reason}"})
+            return
+
+        sec = build_security_filter(user.user_role, user.department)
+
+        # Stage 2: SPARQL generation
+        yield _sse("stage", {"stage": "sparql"})
+        try:
+            sparql = await asyncio.to_thread(
+                nl_to_sparql, question,
+                req.clarification_context, user.user_role,
+                req.use_virtual_graph, sec.sparql_data_filter,
+                req.session_id,
+            )
+        except Exception as exc:
+            yield _sse("error", {"error": f"SPARQL generation failed: {exc}"})
+            return
+
+        # Stage 3: Execute
+        db = get_stardog()
+        try:
+            raw = await asyncio.to_thread(db.query, sparql)
+            columns, rows = db.to_rows(raw)
+        except Exception as exc:
+            yield _sse("error", {"error": f"Query failed: {exc}"})
+            return
+
+        rows = rows[:sec.max_rows]
+        scan = scan_and_redact(rows, redact=True)
+
+        # Stage 4: Stream answer from Claude
+        yield _sse("stage", {"stage": "synthesising"})
+        if _s.anthropic.enabled:
+            from nexus.core.claude_client import stream_answer
+            from nexus.core.ontology      import get_ontology
+            preview = _json.dumps(scan.redacted_rows[:20], indent=2)
+            ont     = get_ontology()
+            sys_txt = (
+                "You are NEXUS, a precise enterprise knowledge graph assistant.\n"
+                "Answer the question using the results. Use **Direct Answer**, "
+                "**Reasoning & Explanation**, and **Confidence & Caveats** sections."
+            )
+            user_msg = (
+                f"Question: {question}\nColumns: {', '.join(columns)}\n"
+                f"Total: {len(rows)} results\n\nResults:\n{preview}"
+            )
+            for token in stream_answer(sys_txt, user_msg):
+                yield _sse("token", {"text": token})
+        else:
+            # Fallback: GPT-4o non-streaming, emit as single token block
+            from nexus.core.answer_engine import synthesise
+            answer = await asyncio.to_thread(
+                synthesise, question, columns, scan.redacted_rows, sparql, len(rows)
+            )
+            yield _sse("token", {"text": answer})
+
+        latency = int((time.monotonic() - t0) * 1000)
+        yield _sse("meta", {"sparql": sparql, "row_count": len(rows), "latency_ms": latency})
+        yield _sse("done", {})
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @app.post("/v1/context", tags=["Agents"])
@@ -806,3 +945,94 @@ async def list_adrs(
         _safe_filter_param(domain, "domain")
     adrs = list_adrs_from_graph(capability=capability, domain=domain)
     return {"adrs": adrs}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MULTI-AGENT ORCHESTRATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class AgentTaskRequest(BaseModel):
+    description: str = Field(..., min_length=10, max_length=4000,
+                             description="High-level task for the orchestrator agent")
+
+
+class AgentTaskResponse(BaseModel):
+    task_id:    str
+    status:     str
+    created_at: str
+
+
+@app.post("/v1/agent/task", response_model=AgentTaskResponse, tags=["Agent Orchestration"])
+async def submit_agent_task(
+    req: AgentTaskRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """
+    Submit a high-level autonomous task to the NEXUS orchestrator agent.
+    The orchestrator uses Claude tool_use to decompose and execute sub-agent calls.
+    Returns immediately with a task_id; poll /v1/agent/task/{id} for results.
+    """
+    from nexus.agents.orchestrator import submit_task, get_task
+    task_id = submit_task(
+        description=req.description,
+        user_id=user.user_id,
+        user_role=user.user_role,
+    )
+    task = get_task(task_id) or {}
+    return AgentTaskResponse(
+        task_id=task_id,
+        status=task.get("status", "pending"),
+        created_at=task.get("created_at", ""),
+    )
+
+
+@app.get("/v1/agent/task/{task_id}", tags=["Agent Orchestration"])
+async def get_agent_task(
+    task_id: str = Path(..., description="Task ID returned from POST /v1/agent/task"),
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """
+    Poll an orchestrator task for status and result.
+    status: pending | running | completed | failed
+    """
+    from nexus.agents.orchestrator import get_task
+    task = get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
+    if task.get("user_id") != user.user_id and user.user_role not in ("admin",):
+        raise HTTPException(status_code=403, detail="Access denied.")
+    return task
+
+
+@app.get("/v1/agent/tasks", tags=["Agent Orchestration"])
+async def list_agent_tasks(
+    limit: int = Query(20, ge=1, le=100),
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """
+    List orchestrator tasks for the current user (admins see all).
+    """
+    from nexus.agents.orchestrator import list_tasks
+    uid = "" if user.user_role == "admin" else user.user_id
+    tasks = list_tasks(user_id=uid, limit=limit)
+    return {"tasks": tasks, "count": len(tasks)}
+
+
+@app.delete("/v1/agent/task/{task_id}", tags=["Agent Orchestration"])
+async def cancel_agent_task(
+    task_id: str = Path(...),
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """
+    Mark a pending/running task as cancelled (best-effort; running threads are not interrupted).
+    """
+    from nexus.agents.orchestrator import get_task, _TASKS
+    task = get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
+    if task.get("user_id") != user.user_id and user.user_role not in ("admin",):
+        raise HTTPException(status_code=403, detail="Access denied.")
+    if task.get("status") in ("completed", "failed"):
+        raise HTTPException(status_code=409, detail=f"Task already in terminal state: {task['status']}")
+    _TASKS[task_id]["status"] = "cancelled"
+    return {"task_id": task_id, "status": "cancelled"}

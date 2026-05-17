@@ -66,6 +66,7 @@ def nl_to_sparql(
     user_role: str = "analyst",
     use_virtual_graph: bool = False,
     extra_filters: str = "",
+    session_id: str = "",
 ) -> str:
     """
     Translate a natural language question to a SPARQL query.
@@ -81,6 +82,29 @@ def nl_to_sparql(
         A clean SPARQL string, ready to execute.
     """
     ont = get_ontology()
+
+    # ── Multi-turn session context ──────────────────────────────────────
+    session_ctx = ""
+    if session_id:
+        try:
+            from nexus.agents.session import get_session_context
+            ctx = get_session_context(session_id)
+            if ctx.get("turn_count", 0) > 0:
+                entities = ", ".join(
+                    f'"{lbl}" <{uri}>' for uri, lbl in ctx.get("entity_focus", []) if uri
+                )
+                session_ctx = (
+                    f"\nCONVERSATION CONTEXT (turn {ctx.get('turn_count', 0)}):\n"
+                    f"  Previous intent: {ctx.get('last_intent', '(unknown)')}\n"
+                )
+                if entities:
+                    session_ctx += (
+                        f"  Entity focus: {entities}\n"
+                        f"  When the user says 'it', 'they', 'those', 'that application', "
+                        f"resolve to these entities.\n"
+                    )
+        except Exception as _se:
+            logger.debug("session context unavailable: %s", _se)
 
     vg_hint = (
         "\nFor live operational data, use Denodo virtual graph SERVICE blocks only when the ontology and question clearly require them.\n"
@@ -103,7 +127,7 @@ def nl_to_sparql(
     )
 
     system = f"""You are a SPARQL expert for NEXUS, an Enterprise Knowledge Graph.
-
+{session_ctx}
 Use ONLY the ontology snapshot below as the source of truth for classes, predicates, and directions.
 Do NOT invent classes, predicates, inverse relationships, or substitute a prefixed name for a full IRI.
 If the ontology shows a full IRI like <urn:EA_AI_Intelligence:manages_user>, preserve it exactly.

@@ -138,6 +138,19 @@ class DatabricksSettings:
 
 
 @dataclass(frozen=True)
+class AnthropicSettings:
+    api_key:      str  = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
+    answer_model: str  = field(default_factory=lambda: os.getenv("CLAUDE_ANSWER_MODEL", "claude-sonnet-4-6"))
+    agent_model:  str  = field(default_factory=lambda: os.getenv("CLAUDE_AGENT_MODEL",  "claude-sonnet-4-6"))
+    max_tokens:   int  = field(default_factory=lambda: int(os.getenv("CLAUDE_MAX_TOKENS", "4096")))
+    enable_cache: bool = field(default_factory=lambda: os.getenv("CLAUDE_CACHE", "true").lower() == "true")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.api_key)
+
+
+@dataclass(frozen=True)
 class Settings:
     stardog:    StardogSettings    = field(default_factory=StardogSettings)
     openai:     OpenAISettings     = field(default_factory=OpenAISettings)
@@ -145,6 +158,7 @@ class Settings:
     audit:      AuditSettings      = field(default_factory=AuditSettings)
     denodo:     DenodoSettings     = field(default_factory=DenodoSettings)
     databricks: DatabricksSettings = field(default_factory=DatabricksSettings)
+    anthropic:  AnthropicSettings  = field(default_factory=AnthropicSettings)
     environment: str               = field(default_factory=lambda: os.getenv("NEXUS_ENV", "development"))
 
     @property
