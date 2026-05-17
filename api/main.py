@@ -19,6 +19,11 @@ New endpoints (v2):
   GET  /v1/ai-governance         — AI agent governance score + registry
   POST /v1/adr/create            — Generate and store an ADR in the graph
   GET  /v1/adr/list              — List ADRs, optionally filtered by capability
+  POST /v1/query/stream          — SSE streaming query endpoint
+  POST /v1/tasks                 — Submit autonomous orchestrator task
+  GET  /v1/tasks                 — List tasks for current user
+  GET  /v1/tasks/{id}            — Poll task status + result
+  DELETE /v1/tasks/{id}          — Cancel a task
 """
 from __future__ import annotations
 import re
@@ -962,7 +967,7 @@ class AgentTaskResponse(BaseModel):
     created_at: str
 
 
-@app.post("/v1/agent/task", response_model=AgentTaskResponse, tags=["Agent Orchestration"])
+@app.post("/v1/tasks", response_model=AgentTaskResponse, tags=["Agent Orchestration"])
 async def submit_agent_task(
     req: AgentTaskRequest,
     user: AuthenticatedUser = Depends(get_current_user),
@@ -970,7 +975,7 @@ async def submit_agent_task(
     """
     Submit a high-level autonomous task to the NEXUS orchestrator agent.
     The orchestrator uses Claude tool_use to decompose and execute sub-agent calls.
-    Returns immediately with a task_id; poll /v1/agent/task/{id} for results.
+    Returns immediately with a task_id; poll GET /v1/tasks/{id} for results.
     """
     from nexus.agents.orchestrator import submit_task, get_task
     task_id = submit_task(
@@ -986,9 +991,23 @@ async def submit_agent_task(
     )
 
 
-@app.get("/v1/agent/task/{task_id}", tags=["Agent Orchestration"])
+@app.get("/v1/tasks", tags=["Agent Orchestration"])
+async def list_agent_tasks(
+    limit: int = Query(20, ge=1, le=100),
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """
+    List orchestrator tasks for the current user (admins see all).
+    """
+    from nexus.agents.orchestrator import list_tasks
+    uid = "" if user.user_role == "admin" else user.user_id
+    tasks = list_tasks(user_id=uid, limit=limit)
+    return {"tasks": tasks, "count": len(tasks)}
+
+
+@app.get("/v1/tasks/{task_id}", tags=["Agent Orchestration"])
 async def get_agent_task(
-    task_id: str = Path(..., description="Task ID returned from POST /v1/agent/task"),
+    task_id: str = Path(..., description="Task ID returned from POST /v1/tasks"),
     user: AuthenticatedUser = Depends(get_current_user),
 ):
     """
@@ -1004,21 +1023,7 @@ async def get_agent_task(
     return task
 
 
-@app.get("/v1/agent/tasks", tags=["Agent Orchestration"])
-async def list_agent_tasks(
-    limit: int = Query(20, ge=1, le=100),
-    user: AuthenticatedUser = Depends(get_current_user),
-):
-    """
-    List orchestrator tasks for the current user (admins see all).
-    """
-    from nexus.agents.orchestrator import list_tasks
-    uid = "" if user.user_role == "admin" else user.user_id
-    tasks = list_tasks(user_id=uid, limit=limit)
-    return {"tasks": tasks, "count": len(tasks)}
-
-
-@app.delete("/v1/agent/task/{task_id}", tags=["Agent Orchestration"])
+@app.delete("/v1/tasks/{task_id}", tags=["Agent Orchestration"])
 async def cancel_agent_task(
     task_id: str = Path(...),
     user: AuthenticatedUser = Depends(get_current_user),

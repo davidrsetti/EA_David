@@ -42,7 +42,6 @@ def nightly_portfolio_health_scan() -> None:
     logger.info("Background: nightly_portfolio_health_scan starting")
     try:
         from nexus.core.apm_agent import run_apm_agent
-        from nexus.core.stardog_client import get_stardog
 
         result = run_apm_agent(focus_domain="", user_role="admin")
         eliminate = [s for s in result.app_scores if s.time_class.value == "ELIMINATE"]

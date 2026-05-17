@@ -37,8 +37,12 @@ def test_tolerate_quadrant():
 
 
 def test_migrate_quadrant():
-    """High BV + bad lifecycle = Migrate."""
-    app = _app(capCount=5, conCount=10, lifecycle="end-of-life", ownerLabel="carol")
+    """High BV + bad lifecycle + no platform = Migrate.
+
+    TF breakdown: lc(eol=0.5)*0.5=0.25 + owner(1)*2.5=2.5 + no-platform(0) + low-dep(1) = 3.75 < 5.
+    BV is high (5 capabilities, 10 consumers). → Migrate quadrant.
+    """
+    app = _app(capCount=5, conCount=10, lifecycle="end-of-life", ownerLabel="carol", platform="")
     score = _score_app(app, findings=[], assets=[{"appLabel": "TestApp"}])
     assert score.time_class == TIMEClass.MIGRATE
 
