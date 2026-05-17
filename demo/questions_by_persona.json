@@ -1,0 +1,114 @@
+{
+  "Executive Board": {
+    "persona_brief": "Non-technical. Cares about risk, cost, strategic alignment, and AI governance.",
+    "talking_points": [
+      "We have real-time visibility into the health of every application in the portfolio.",
+      "AI agents are governed — every one is tracked, classified, and reviewed on schedule.",
+      "Capability gaps are detected automatically — no manual surveys required."
+    ],
+    "questions": [
+      {
+        "q": "What percentage of our application portfolio is at risk?",
+        "expected_themes": ["lifecycle", "ELIMINATE", "portfolio score"],
+        "why_it_lands": "Converts abstract graph data into a board-level risk metric.",
+        "fallback": "Navigate to Portfolio tab — show the TIME quadrant chart directly."
+      },
+      {
+        "q": "Which business capabilities have no technology support?",
+        "expected_themes": ["capability gap", "no application", "BusinessCapabilityL3"],
+        "why_it_lands": "Reveals blind spots — capabilities the business relies on with no app enablement.",
+        "fallback": "Ask: 'List capabilities with no supporting application' (simpler SPARQL)."
+      },
+      {
+        "q": "What is our AI governance posture across all agents?",
+        "expected_themes": ["riskTier", "reviewDue", "ai:Agent"],
+        "why_it_lands": "AI governance is a board-level concern post EU AI Act.",
+        "fallback": "Navigate to AI Governance tab — shows unrated and overdue agents in a table."
+      }
+    ]
+  },
+  "CTO": {
+    "persona_brief": "Technical. Cares about technical debt, platform risk, dependency chains, lifecycle.",
+    "talking_points": [
+      "Every application has a technical fitness score — scored on lifecycle, platform modernity, and integration.",
+      "Risky dependencies are flagged automatically — sunset apps with active downstreams.",
+      "Background agents run nightly health scans so technical debt is tracked continuously."
+    ],
+    "questions": [
+      {
+        "q": "Which applications are on sunset or legacy lifecycle?",
+        "expected_themes": ["lifecycle", "sunset", "legacy", "eol"],
+        "why_it_lands": "Immediately surfaces the decommission backlog.",
+        "fallback": "Navigate to Portfolio tab — filter by TIME class 'ELIMINATE'."
+      },
+      {
+        "q": "What are the riskiest dependencies in our portfolio?",
+        "expected_themes": ["dependsOn", "sunset", "legacy", "dependency risk"],
+        "why_it_lands": "Shows the blast radius of technical debt — not just the debt itself.",
+        "fallback": "Navigate to Change Impact tab — pick any ELIMINATE-class app and run impact analysis."
+      },
+      {
+        "q": "Show me all AI agents without a risk tier assigned.",
+        "expected_themes": ["riskTier", "unrated", "ai:Agent"],
+        "why_it_lands": "Compliance gap — AI Act requires risk classification.",
+        "fallback": "Navigate to AI Governance tab — unrated agents listed in the first panel."
+      }
+    ]
+  },
+  "CDTO": {
+    "persona_brief": "Digital transformation. Cares about capabilities, data, business outcomes, transformation roadmap.",
+    "talking_points": [
+      "Every capability is mapped to the applications that enable it — and the gaps are visible.",
+      "Change impact analysis shows which business processes are affected before any decision is made.",
+      "The graph links data assets, capabilities, and applications into a single transformation view."
+    ],
+    "questions": [
+      {
+        "q": "Which business capabilities support Order-to-Cash?",
+        "expected_themes": ["enablesBusinessCapability", "Order-to-Cash", "application"],
+        "why_it_lands": "Shows process-to-technology traceability at the click of a button.",
+        "fallback": "Ask: 'Which apps enable Sales or Finance capabilities?' (broader)"
+      },
+      {
+        "q": "What data assets does the Finance domain rely on?",
+        "expected_themes": ["data:Dataset", "Finance", "domain"],
+        "why_it_lands": "Surfaces data dependencies for the CDO/CDTO's data strategy.",
+        "fallback": "Navigate to Data Query tab — run a domain-scoped data asset query."
+      },
+      {
+        "q": "What is the impact if we retire SAP ERP?",
+        "expected_themes": ["dependsOn", "blast radius", "downstream"],
+        "why_it_lands": "Real-time change impact — shows every downstream dependency in concentric rings.",
+        "fallback": "Navigate to Change Impact tab — search for SAP ERP and run analysis."
+      }
+    ]
+  },
+  "Chief Architect": {
+    "persona_brief": "Technical depth. Cares about ADRs, integration patterns, architecture standards, SA recommendations.",
+    "talking_points": [
+      "The SA Advisor generates solution architecture recommendations grounded in the live graph.",
+      "ADRs are stored in the graph and queryable — decision history is always accessible.",
+      "The diagram generator produces ArchiMate-aligned diagrams from natural language."
+    ],
+    "questions": [
+      {
+        "q": "Generate a solution architecture for a new customer portal.",
+        "expected_themes": ["ArchiMate", "layers", "components", "integration"],
+        "why_it_lands": "Live demo of AI-assisted architecture design.",
+        "fallback": "Navigate to SA Advisor tab — use the pre-built 'Customer Portal' example."
+      },
+      {
+        "q": "List all Architecture Decision Records for the Finance domain.",
+        "expected_themes": ["ADR", "decision", "Finance"],
+        "why_it_lands": "Shows institutional memory — ADRs are findable by domain.",
+        "fallback": "Navigate to SA Health tab — ADR list is in the second panel."
+      },
+      {
+        "q": "What is the blast radius if we decommission the legacy data warehouse?",
+        "expected_themes": ["dependsOn", "rings", "downstream", "data warehouse"],
+        "why_it_lands": "Multi-hop impact analysis with concentric dependency rings.",
+        "fallback": "Navigate to Change Impact tab — search 'data warehouse' and run analysis."
+      }
+    ]
+  }
+}

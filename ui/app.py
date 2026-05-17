@@ -128,6 +128,21 @@ with st.sidebar:
     user_dept = st.text_input("Department", value="", placeholder="e.g. Finance")
     st.divider()
 
+    st.divider()
+    st.markdown(f'<div style="color:{GREY_MUTED};font-size:.7rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:.4rem">Demo</div>', unsafe_allow_html=True)
+    demo_mode = st.toggle("Demo Mode", value=st.session_state.get("demo_mode", False), key="demo_mode")
+    if demo_mode:
+        demo_persona = st.selectbox(
+            "Persona",
+            ["Executive Board", "CTO", "CDTO", "Chief Architect"],
+            key="demo_persona",
+        )
+        show_sparql  = False
+        show_table   = False
+        show_plan    = False
+        auto_confirm = True
+    st.divider()
+
     if st.button("Refresh Graph Health", use_container_width=True):
         if st.session_state.connected:
             from nexus.core.stardog_client import get_stardog
@@ -194,6 +209,47 @@ with tab_chat:
         "Which business processes span more than one business domain with no shared data standard?",
     ]
 
+    PERSONA_EXAMPLES = {
+        "Executive Board": [
+            "What percentage of our application portfolio is at risk?",
+            "Which business capabilities have no technology support?",
+            "What is our AI governance posture across all agents?",
+            "Show me the top 5 applications recommended for decommission.",
+            "What is the total portfolio health score?",
+            "Which domains have the highest capability gaps?",
+        ],
+        "CTO": [
+            "Which applications are on sunset or legacy lifecycle?",
+            "What are the riskiest dependencies in our portfolio?",
+            "Show me all AI agents without a risk tier assigned.",
+            "Which capabilities are most over-served by redundant applications?",
+            "What is the technical debt distribution across domains?",
+            "List applications with the lowest technical fitness scores.",
+        ],
+        "CDTO": [
+            "Which business capabilities support Order-to-Cash?",
+            "What data assets does the Finance domain rely on?",
+            "Show me capability gaps in the HR domain.",
+            "Which applications enable our top 3 revenue-generating capabilities?",
+            "What is the impact if we retire SAP ERP?",
+            "Show me the transformation roadmap for the Supply Chain domain.",
+        ],
+        "Chief Architect": [
+            "Generate a solution architecture for a new customer portal.",
+            "What are the integration patterns between our ERP and CRM systems?",
+            "List all Architecture Decision Records for the Finance domain.",
+            "What is the blast radius if we decommission the legacy data warehouse?",
+            "Show me the dependency graph for the Order Management application.",
+            "Which applications violate our platform standards?",
+        ],
+    }
+
+    _active_examples = (
+        PERSONA_EXAMPLES.get(st.session_state.get("demo_persona", "Executive Board"), EXAMPLES)
+        if st.session_state.get("demo_mode", False)
+        else EXAMPLES
+    )
+
     if not st.session_state.messages and not st.session_state.pending_plan:
         st.markdown(
             '<div style="color:#777777;font-size:.78rem;font-weight:600;letter-spacing:.05em;'
@@ -201,7 +257,7 @@ with tab_chat:
             unsafe_allow_html=True
         )
         cols = st.columns(3)
-        for i, ex in enumerate(EXAMPLES):
+        for i, ex in enumerate(_active_examples):
             if cols[i % 3].button(ex[:58] + ("..." if len(ex) > 58 else ""), key=f"ex_{i}", use_container_width=True):
                 st.session_state["prefill"] = ex
                 st.rerun()
