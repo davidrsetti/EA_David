@@ -247,12 +247,12 @@ tab_chat, tab_guided_sa, tab_sa, tab_data, tab_portfolio, tab_sa_health, tab_dia
 with tab_chat:
 
     EXAMPLES = [
-        "Which applications directly support the Order-to-Cash business process?",
-        "Which business capabilities have no application support in the current portfolio?",
-        "What are all integration points between Finance and HR systems?",
-        "Which data assets have no assigned data steward or owner?",
-        "Which technology components are running end-of-life or unsupported software?",
-        "Which business processes span more than one business domain with no shared data standard?",
+        "List top 10 applications",
+        "What Applications enable Demand Planning Business Capability?",
+        "What are EA technology Standards for API Integration?",
+        "What are the GSK's data and Analytics Platforms?",
+        "What are the technology standards to manage Data Catalog?",
+        "What are R&D Development Data Domains?",
     ]
 
     PERSONA_EXAMPLES = {
@@ -368,7 +368,6 @@ with tab_chat:
         from nexus.core.stardog_client  import get_stardog
         from nexus.core.answer_engine   import synthesise_full
         from nexus.audit.logger         import log_query, log_guard_event
-        from nexus.audit.pii_scanner    import scan_and_redact
         from nexus.config.settings      import settings as _s
 
         t0         = time.monotonic()
@@ -433,12 +432,11 @@ with tab_chat:
 
             total           = len(rows)
             rows            = rows[:sec.max_rows]
-            scan            = scan_and_redact(rows, redact=True)
             classifications = list({r.get("classification", "") for r in rows if r.get("classification")})
 
             status.markdown("Synthesising answer...")
             result  = synthesise_full(
-                question, columns, scan.redacted_rows, sparql, total,
+                question, columns, rows, sparql, total,
                 user_role=user_role, session_id=session_id,
             )
             answer  = result.answer
@@ -450,7 +448,7 @@ with tab_chat:
             )
             log_query("ui-user", user_role, session_id, question, sparql,
                       len(rows), columns, classifications, latency, model_used,
-                      pii_detected=scan.pii_found)
+                      pii_detected=False)
 
             # Persist turn for multi-turn context
             if session_id:
@@ -458,7 +456,7 @@ with tab_chat:
                     from nexus.agents.session import store_turn, get_session_context, update_session
                     ctx   = get_session_context(session_id)
                     tnum  = ctx.get("turn_count", 0) + 1
-                    focus = [r.get("uri") or r.get("app") or "" for r in scan.redacted_rows[:5] if isinstance(r, dict)]
+                    focus = [r.get("uri") or r.get("app") or "" for r in rows[:5] if isinstance(r, dict)]
                     focus = [f for f in focus if f.startswith("http") or f.startswith("urn")]
                     update_session(session_id, question, focus, tnum)
                     store_turn(session_id, tnum, question, answer[:2000])
@@ -466,26 +464,18 @@ with tab_chat:
                     pass
 
             status.empty()
-            if scan.pii_found:
-                det = ", ".join(f"{d['field']} ({d['type']})" for d in scan.detections)
-                st.info(f"PII detected and redacted: {det}")
-
             st.markdown(answer)
 
             if show_sparql:
                 with st.expander("Generated SPARQL"):
                     st.code(sparql, language="sparql")
-            if show_table and scan.redacted_rows:
+            if show_table and rows:
                 label = f"Results — {total} rows"
                 if total > sec.max_rows: label += f" (showing {sec.max_rows})"
                 with st.expander(label):
-                    st.dataframe(pd.DataFrame(scan.redacted_rows), use_container_width=True, hide_index=True)
+                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
-            st.caption(
-                f"{latency}ms · {total} rows"
-                + (" · PII redacted" if scan.pii_found else "")
-                + f" · complexity:{complexity} · {model_used}"
-            )
+            st.caption(f"{latency}ms · {total} rows · complexity:{complexity} · {model_used}")
 
             # Follow-up suggestion chips
             if result.suggestions:
@@ -504,7 +494,7 @@ with tab_chat:
 
             st.session_state.messages.append({
                 "role": "assistant", "content": answer,
-                "sparql": sparql, "rows": scan.redacted_rows[:50],
+                "sparql": sparql, "rows": rows[:50],
                 "row_count": total, "latency_ms": latency, "model": model_used,
             })
             st.session_state.turn_count += 1
