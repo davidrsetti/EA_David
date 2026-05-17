@@ -49,7 +49,6 @@ for k, v in {
     if k not in st.session_state:
         st.session_state[k] = v
 
-
 def make_client(endpoint, token, oai_key, db):
     """Set credentials, reset the StardogClient singleton, return a fresh client."""
     os.environ.update({
@@ -69,6 +68,25 @@ def make_client(endpoint, token, oai_key, db):
     _sc._client = client
     return client
 
+
+# ── Auto-connect on first load if .env credentials are present ────────
+if not st.session_state.connected and not st.session_state.get("_auto_connect_tried"):
+    st.session_state["_auto_connect_tried"] = True
+    _ep  = os.getenv("STARDOG_ENDPOINT", "")
+    _tok = os.getenv("STARDOG_TOKEN", "")
+    _key = os.getenv("OPENAI_API_KEY", "")
+    _db  = os.getenv("STARDOG_DB", "nexus")
+    if _ep and _tok and _key:
+        try:
+            _ac = make_client(_ep, _tok, _key, _db)
+            _ac.query("ASK { ?s ?p ?o } LIMIT 1", inject_prefixes=False)
+            from nexus.agents.session import create_session
+            st.session_state.session_id = create_session("ui-user", "analyst")
+            st.session_state.connected = True
+            st.session_state["_conn_last_check"] = time.monotonic()
+            logging.warning("Auto-connect succeeded: %s", _ep)
+        except Exception as _e:
+            logging.warning("Auto-connect failed: %s", _e)
 
 # ── Sidebar ───────────────────────────────────────────────────────────
 with st.sidebar:
@@ -100,8 +118,6 @@ with st.sidebar:
         _db  = db_name.strip()
         if _ep and _key:
             try:
-                import logging as _log
-                _log.warning("CONNECT: endpoint=%s db=%s token_set=%s", _ep, _db, bool(_tok))
                 os.environ.update({"SPARQL_MODEL": sparql_model, "ANSWER_MODEL": answer_model})
                 client = make_client(_ep, _tok, _key, _db)
                 client.query("ASK { ?s ?p ?o } LIMIT 1", inject_prefixes=False)
@@ -111,13 +127,11 @@ with st.sidebar:
                 st.session_state["_conn_last_check"] = time.monotonic()
                 st.success("Connected")
             except Exception as e:
-                import traceback as _tb
-                _log.error("CONNECT FAILED: %s\n%s", e, _tb.format_exc())
                 st.error(f"Connection failed: {e}")
                 st.session_state.connected = False
                 st.session_state["_conn_last_check"] = 0
         else:
-            st.warning(f"Endpoint and API key required. ep={bool(_ep)} key={bool(_key)}")
+            st.warning("Endpoint and API key required.")
 
     st.divider()
     st.markdown(f'<div style="color:{GREY_MUTED};font-size:.7rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:.4rem">Query Options</div>', unsafe_allow_html=True)
@@ -126,8 +140,6 @@ with st.sidebar:
     show_table   = st.toggle("Show Results Table", value=True)
     show_plan    = st.toggle("Show Query Plan", value=True)
     auto_confirm = st.toggle("Auto-confirm (skip HitL)", value=False)
-    st.divider()
-
     st.divider()
     st.markdown(f'<div style="color:{GREY_MUTED};font-size:.7rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:.4rem">Demo</div>', unsafe_allow_html=True)
     demo_mode = st.toggle("Demo Mode", value=st.session_state.get("demo_mode", False), key="demo_mode")
