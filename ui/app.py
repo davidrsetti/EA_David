@@ -64,9 +64,6 @@ def make_client(endpoint, token, oai_key, db):
     # Reset the frozen Settings singleton so it re-reads env vars
     import nexus.config.settings as _cfg
     _cfg.settings = _cfg.Settings()
-    # Invalidate schema cache so the new endpoint's ontology is fetched fresh
-    from nexus.core.sa_advisor_v2 import invalidate_schema_cache
-    invalidate_schema_cache()
     from nexus.core.stardog_client import StardogClient
     client = StardogClient()
     _sc._client = client
@@ -97,12 +94,16 @@ with st.sidebar:
         answer_model = st.selectbox("Answer Model", ["gpt-4o", "gpt-4o-mini", "o3-mini"])
 
     if st.button("Connect", use_container_width=True):
-        if endpoint and openai_key:
+        _ep  = endpoint.strip()
+        _tok = token.strip()
+        _key = openai_key.strip()
+        _db  = db_name.strip()
+        if _ep and _key:
             try:
-                # Set model preferences before resetting the settings singleton
+                import logging as _log
+                _log.warning("CONNECT: endpoint=%s db=%s token_set=%s", _ep, _db, bool(_tok))
                 os.environ.update({"SPARQL_MODEL": sparql_model, "ANSWER_MODEL": answer_model})
-                client = make_client(endpoint, token, openai_key, db_name)
-                # Ping Stardog to validate credentials before proceeding
+                client = make_client(_ep, _tok, _key, _db)
                 client.query("ASK { ?s ?p ?o } LIMIT 1", inject_prefixes=False)
                 from nexus.agents.session import create_session
                 st.session_state.session_id = create_session("ui-user", "analyst")
@@ -110,11 +111,13 @@ with st.sidebar:
                 st.session_state["_conn_last_check"] = time.monotonic()
                 st.success("Connected")
             except Exception as e:
+                import traceback as _tb
+                _log.error("CONNECT FAILED: %s\n%s", e, _tb.format_exc())
                 st.error(f"Connection failed: {e}")
                 st.session_state.connected = False
                 st.session_state["_conn_last_check"] = 0
         else:
-            st.warning("Endpoint and API key required.")
+            st.warning(f"Endpoint and API key required. ep={bool(_ep)} key={bool(_key)}")
 
     st.divider()
     st.markdown(f'<div style="color:{GREY_MUTED};font-size:.7rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:.4rem">Query Options</div>', unsafe_allow_html=True)

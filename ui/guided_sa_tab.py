@@ -65,8 +65,9 @@ def render_guided_sa_tab(st, user_role: str = "analyst"):
         "and enterprise constraints before generating target architecture."
     )
 
-    if not getattr(st.session_state, "connected", True):
+    if not getattr(st.session_state, "connected", False):
         st.info("Connect to NEXUS first to load graph-backed suggestions.")
+        return
 
     c1, c2, c3, c4 = st.columns(4)
     step = c1.radio("Step", ["1. Business", "2. Sources", "3. Requirements", "4. Recommend"], label_visibility="collapsed")
