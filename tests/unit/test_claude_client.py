@@ -6,12 +6,12 @@ from nexus.core.claude_client import _make_system_blocks, NEXUS_TOOLS
 # ── NEXUS_TOOLS definition ────────────────────────────────────────────────────
 
 def test_nexus_tools_count():
-    assert len(NEXUS_TOOLS) == 4
+    assert len(NEXUS_TOOLS) == 5
 
 
 def test_nexus_tools_names():
     names = {t["name"] for t in NEXUS_TOOLS}
-    assert names == {"run_sparql", "get_entity_context", "assert_finding", "search_ontology"}
+    assert names == {"run_sparql", "get_entity_context", "assert_finding", "search_ontology", "query_databricks"}
 
 
 def test_nexus_tools_all_have_input_schema():

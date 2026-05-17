@@ -125,3 +125,24 @@ def test_search_ontology_finds_application_term():
 def test_search_ontology_unknown_term_returns_message():
     result = _search_ontology({"term": "xyzzy_does_not_exist_in_ontology_12345"})
     assert "No ontology entries" in result or isinstance(result, str)
+
+
+# ── query_databricks tool ─────────────────────────────────────────────────────
+
+def test_query_databricks_viewer_role_denied():
+    """viewer role must not be allowed to run Databricks SQL."""
+    result = dispatch("query_databricks", {"sql": "SELECT 1"}, user_role="viewer")
+    assert "Permission denied" in result or "denied" in result.lower()
+
+
+def test_query_databricks_non_select_rejected():
+    """Non-SELECT statements must be blocked regardless of role."""
+    result = dispatch("query_databricks", {"sql": "DROP TABLE sales"}, user_role="admin")
+    assert "Error" in result or "error" in result.lower()
+
+
+def test_query_databricks_empty_sql_returns_error():
+    """Empty SQL must return an error string, not raise."""
+    result = dispatch("query_databricks", {"sql": ""}, user_role="analyst")
+    assert isinstance(result, str)
+    assert "Error" in result or "error" in result.lower() or "required" in result.lower()

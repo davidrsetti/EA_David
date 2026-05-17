@@ -43,6 +43,14 @@ PREFIXES: dict[str, str] = {
     "ops":     f"{OPS_BASE}ops#",
     "EAAI":    EAAI_BASE,
 
+    # ── BI / Migration / Lineage namespaces ──────────────────────────────
+    "kpi":   f"{EA_BASE}kpi#",                    # KPI, Measure, Variable, DataProduct
+    "mig":   f"{EA_BASE}migration#",              # LegacyReport, Disposition, Wave, ParityTest
+    "bw":    f"{EA_BASE}bw#",                     # SAP BW InfoProvider, BEx query references
+    "qb":    "http://purl.org/linked-data/cube#", # W3C RDF Data Cube (MeasureProperty, DataSet)
+    "prov":  "http://www.w3.org/ns/prov#",        # wasDerivedFrom, wasAttributedTo, wasGeneratedBy
+    "dcat":  "http://www.w3.org/ns/dcat#",        # DCAT-3 Dataset, distribution
+
     # ── Backwards-compatible aliases (same URI, different prefix label) ─
     # `nexus` is used in sparql_corrections.py + tests for the ops# namespace.
     "nexus":   f"{OPS_BASE}ops#",
@@ -92,4 +100,7 @@ DOMAIN_HINTS: dict[str, str] = {
     "reference_arch": "arch:ReferenceArchitecture · arch:ArchitectureLayer · arch:ArchitectureComponent · arch:hasLayer · arch:hasComponent · arch:usesTechnology · gskref:GSK_AIAgent_AccessMgmt_Ref",
     "findings":       "ops:AgentFinding · ops:severity · ops:findingStatus · ops:foundBy · ops:affects · ops:reviewedBy · (alias: nexus:AgentFinding)",
     "sessions":       "ops:ConversationSession · ops:sessionUserId · ops:sessionUserRole · ops:turnCount · ops:startedAt · ops:lastActive · ops:entityFocus",
+    "kpi":            "kpi:KPI · kpi:CalculatedMeasure · kpi:RestrictedMeasure · kpi:Variable · kpi:Parameter · kpi:DataProduct · kpi:Report · kpi:Hierarchy · kpi:expression · kpi:targetCurrency · kpi:fiscalVariant · kpi:residesIn · qb:MeasureProperty · qb:DataSet · prov:wasDerivedFrom",
+    "migration":      "mig:LegacyReport · mig:proposedDisposition · mig:approvedDisposition · mig:Dispose · mig:Retire · mig:ToNEXUS · mig:ToSAC · mig:ToBDCDatabricks · mig:Wave · mig:scheduledIn · mig:ParityTest · mig:hasParityResult · bw:InfoProvider · bw:BExQuery · bw:InfoCube",
+    "lineage":        "prov:wasDerivedFrom · prov:wasAttributedTo · prov:wasGeneratedBy · prov:Agent · data:lineageFrom · data:LineageRecord · dcat:distribution · dcat:Dataset · dcat:accessURL",
 }

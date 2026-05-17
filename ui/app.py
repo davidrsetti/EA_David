@@ -192,7 +192,7 @@ st.markdown(
 )
 
 # ── Main tabs ─────────────────────────────────────────────────────────
-tab_chat, tab_guided_sa, tab_sa, tab_data, tab_portfolio, tab_sa_health, tab_diagram, tab_impact, tab_ai_gov, tab_audit, tab_agent_tasks = st.tabs(TAB_LABELS)
+tab_chat, tab_guided_sa, tab_sa, tab_data, tab_portfolio, tab_sa_health, tab_diagram, tab_impact, tab_ai_gov, tab_audit, tab_agent_tasks, tab_migration = st.tabs(TAB_LABELS)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1238,3 +1238,10 @@ with tab_agent_tasks:
                                 f'Input: `{json.dumps(st_item.get("input",{}))[:120]}`  \n'
                                 f'Result: {str(st_item.get("result",""))[:200]}'
                             )
+
+# ═══════════════════════════════════════════════════════════════════════
+# TAB 12 — REPORT MIGRATION
+# ═══════════════════════════════════════════════════════════════════════
+with tab_migration:
+    from nexus.ui.migration_tab import render as _render_migration
+    _render_migration(ORANGE, GREY_MUTED, GREY_LINE, WHITE, NEAR_BLACK)

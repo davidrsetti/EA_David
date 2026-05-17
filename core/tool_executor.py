@@ -33,6 +33,8 @@ def dispatch(
             return _assert_finding(tool_input, user_role)
         elif tool_name == "search_ontology":
             return _search_ontology(tool_input)
+        elif tool_name == "query_databricks":
+            return _query_databricks(tool_input, user_role)
         else:
             return f"Unknown tool: {tool_name}"
     except Exception as exc:
@@ -127,3 +129,22 @@ def _search_ontology(inp: dict) -> str:
     if not hits:
         return f"No ontology entries found containing '{term}'."
     return "\n".join(hits)
+
+
+def _query_databricks(inp: dict, user_role: str) -> str:
+    _ALLOWED_ROLES = {"analyst", "admin", "data-steward"}
+    if user_role not in _ALLOWED_ROLES:
+        return f"Permission denied: role '{user_role}' cannot execute Databricks queries."
+
+    sql = inp.get("sql", "").strip()
+    if not sql:
+        return "Error: sql is required."
+    if not sql.upper().lstrip().startswith("SELECT"):
+        return "Error: only SELECT queries are permitted."
+
+    try:
+        from nexus.core.databricks_client import get_databricks
+        cols, rows = get_databricks().query(sql)
+        return json.dumps({"columns": cols, "rows": rows[:20]}, default=str)
+    except Exception as exc:
+        return f"Databricks query failed: {exc}"

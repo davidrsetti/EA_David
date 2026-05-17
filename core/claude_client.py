@@ -98,6 +98,30 @@ NEXUS_TOOLS: list[dict] = [
             "required": ["term"],
         },
     },
+    {
+        "name": "query_databricks",
+        "description": (
+            "Execute a SQL SELECT query on Databricks to retrieve numeric or tabular data. "
+            "Use this AFTER run_sparql has identified the authorised data product and its "
+            "Databricks table or view. Do NOT use for metadata questions — use run_sparql "
+            "for those. Typical use: federated numeric queries such as 'what was Net Sales "
+            "Q1 FY26?' where the KPI definition and authorised data product are already known."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sql": {
+                    "type": "string",
+                    "description": "A Databricks SQL SELECT statement (fully qualified table names preferred)."
+                },
+                "rationale": {
+                    "type": "string",
+                    "description": "Which KPI or data product this SQL targets and why."
+                },
+            },
+            "required": ["sql"],
+        },
+    },
 ]
 
 

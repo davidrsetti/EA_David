@@ -30,7 +30,7 @@ import re
 import time
 import logging
 from contextlib import asynccontextmanager
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 import json as _json
 import asyncio
@@ -1041,3 +1041,155 @@ async def cancel_agent_task(
         raise HTTPException(status_code=409, detail=f"Task already in terminal state: {task['status']}")
     _TASKS[task_id]["status"] = "cancelled"
     return {"task_id": task_id, "status": "cancelled"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# REPORT MIGRATION — PBI estate rationalisation (Retire/NEXUS/SAC/BDC)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class ScoreRequest(BaseModel):
+    c1:  float = Field(ge=0, le=5, description="Business value (0–5)")
+    c2:  float = Field(ge=0, le=5, description="Usage telemetry (0–5)")
+    c3:  float = Field(ge=0, le=5, description="Overlap / duplication index (0–5)")
+    c4:  float = Field(ge=0, le=5, description="Source pattern (0–5)")
+    c5:  float = Field(ge=0, le=5, description="Logic complexity (0–5)")
+    c6:  float = Field(ge=0, le=5, description="Data volume & refresh latency (0–5)")
+    c7:  float = Field(ge=0, le=5, description="Interactivity pattern (0–5)")
+    c8:  float = Field(ge=0, le=5, description="Persona (0–5)")
+    c9:  bool  = Field(default=False, description="GxP / regulated status (boolean override)")
+    c10: float = Field(ge=0, le=5, description="Strategic alignment to NEXUS roadmap (0–5)")
+    label: str = Field(default="", description="Optional report name for logging")
+
+
+class ReportIngestItem(BaseModel):
+    name:              str
+    workspace:         str
+    info_provider:     str   = ""
+    description:       str   = ""
+    dax_measure_count: int   = 0
+    weekly_viewers:    int   = 0
+    gxp:               bool  = False
+    c1:  Optional[float] = None
+    c2:  Optional[float] = None
+    c3:  Optional[float] = None
+    c4:  Optional[float] = None
+    c5:  Optional[float] = None
+    c6:  Optional[float] = None
+    c7:  Optional[float] = None
+    c8:  Optional[float] = None
+    c10: Optional[float] = None
+
+
+class ApproveRequest(BaseModel):
+    disposition: str = Field(description="One of: Retire, NEXUS, SAC, BDC+Databricks")
+    approver:    str = Field(description="Name or user_id of the Domain Lead approving")
+
+
+@app.post("/v1/migration/score", tags=["Report Migration"])
+def migration_score(req: ScoreRequest):
+    """Score a PBI report using the 10-criterion weighted rubric and return a disposition."""
+    from nexus.core.report_scorer import score_report
+    scores = req.model_dump(exclude={"c9", "label"})
+    result = score_report(scores, gxp=req.c9, report_label=req.label)
+    return {
+        "weighted_score":  round(result.weighted_score, 3),
+        "disposition":     result.disposition,
+        "rationale":       result.rationale,
+        "triggered_rule":  result.triggered_rule,
+        "criteria_scores": result.criteria_scores,
+    }
+
+
+@app.post("/v1/migration/ingest", tags=["Report Migration"])
+def migration_ingest(reports: list[ReportIngestItem]):
+    """
+    Ingest PBI report inventory (e.g. from Tabular Editor JSON export) into the NEXUS graph.
+    Each report is asserted as a mig:LegacyReport entity.
+    """
+    from nexus.core.report_scorer import ingest_report
+    results = []
+    for item in reports:
+        data = item.model_dump(exclude_none=True)
+        uri  = ingest_report(data)
+        results.append({"name": item.name, "uri": uri, "ok": not uri.startswith("Error")})
+    return {"ingested": len([r for r in results if r["ok"]]), "results": results}
+
+
+@app.get("/v1/migration/reports", tags=["Report Migration"])
+def migration_list_reports(disposition: Optional[str] = None, limit: int = Query(default=100, ge=1, le=500)):
+    """List all mig:LegacyReport entities with their proposed/approved dispositions."""
+    from nexus.core.stardog_client import get_stardog
+    disp_filter = ""
+    if disposition:
+        disp_map = {
+            "Retire": "mig:Retire", "NEXUS": "mig:ToNEXUS",
+            "SAC": "mig:ToSAC", "BDC+Databricks": "mig:ToBDCDatabricks",
+        }
+        disp_uri = disp_map.get(disposition)
+        if disp_uri:
+            disp_filter = f"FILTER EXISTS {{ ?r mig:approvedDisposition {disp_uri} }}"
+    sparql = f"""
+PREFIX mig:  <https://ontology.ea.example.org/migration#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT ?r ?label ?workspace ?proposed ?approved ?score ?approvedBy WHERE {{
+    ?r a mig:LegacyReport .
+    OPTIONAL {{ ?r rdfs:label ?label }}
+    OPTIONAL {{ ?r mig:workspace ?workspace }}
+    OPTIONAL {{ ?r mig:proposedDisposition ?proposed }}
+    OPTIONAL {{ ?r mig:approvedDisposition ?approved }}
+    OPTIONAL {{ ?r mig:dispositionScore ?score }}
+    OPTIONAL {{ ?r prov:wasAttributedTo ?approvedBy }}
+    {disp_filter}
+}} LIMIT {limit}
+"""
+    try:
+        db = get_stardog()
+        _, rows = db.to_rows(db.query(sparql, inject_prefixes=False))
+        return {"reports": rows, "count": len(rows)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/v1/migration/approve/{report_id}", tags=["Report Migration"])
+def migration_approve(report_id: str, req: ApproveRequest, user: AuthenticatedUser = Depends(get_current_user)):
+    """Approve a disposition for a report. Writes mig:approvedDisposition to the graph."""
+    from nexus.core.report_scorer import assert_report_disposition
+    report_uri = f"https://ontology.ea.example.org/migration#{report_id}"
+    result = assert_report_disposition(
+        report_uri=report_uri,
+        disposition=req.disposition,
+        approver=req.approver or user.user_id,
+        weighted_score=0.0,
+    )
+    if result.startswith("Error"):
+        raise HTTPException(status_code=500, detail=result)
+    return {"report_uri": result, "disposition": req.disposition, "approver": req.approver}
+
+
+@app.get("/v1/migration/dashboard", tags=["Report Migration"])
+def migration_dashboard():
+    """Aggregate migration stats: count by disposition, % classified, % approved."""
+    from nexus.core.stardog_client import get_stardog
+    sparql = """
+PREFIX mig: <https://ontology.ea.example.org/migration#>
+SELECT ?disposition (COUNT(?r) AS ?count) WHERE {
+    ?r a mig:LegacyReport .
+    OPTIONAL { ?r mig:approvedDisposition ?disposition }
+} GROUP BY ?disposition
+"""
+    total_q = "SELECT (COUNT(?r) AS ?total) WHERE { ?r a <https://ontology.ea.example.org/migration#LegacyReport> }"
+    try:
+        db = get_stardog()
+        _, disp_rows = db.to_rows(db.query(sparql, inject_prefixes=False))
+        _, total_rows = db.to_rows(db.query(total_q, inject_prefixes=False))
+        total = int(total_rows[0].get("total", 0)) if total_rows else 0
+        approved = sum(int(r.get("count", 0)) for r in disp_rows if r.get("disposition"))
+        return {
+            "total_reports": total,
+            "classified_count": approved,
+            "pct_classified": round(approved / total * 100, 1) if total else 0.0,
+            "by_disposition": disp_rows,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
