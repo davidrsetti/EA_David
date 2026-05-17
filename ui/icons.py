@@ -92,10 +92,10 @@ def mat(name: str) -> str:
 # Canonical tab labels — single source of truth used by app.py.
 # Order matches the tab order in app.py. Keep extra spaces so labels read well.
 TAB_LABELS = [
-    f"{mat('forum')}  Knowledge Graph",
-    f"{mat('explore')}  Guided SA Advisor",
-    f"{mat('account_tree')}  Freeform SA Diagram",
-    f"{mat('database')}  Data Query",
+    f"{mat('forum')}  Conversational AI on KG",
+    f"{mat('explore')}  Solution Architect AI Agent",
+    f"{mat('account_tree')}  EA Artifact Generator",
+    f"{mat('database')}  Talk to Structured Data",
     f"{mat('insights')}  Portfolio",
     f"{mat('monitor_heart')}  SA Health",
     f"{mat('schema')}  Architecture Diagrams",

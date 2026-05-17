@@ -107,10 +107,12 @@ with st.sidebar:
                 from nexus.agents.session import create_session
                 st.session_state.session_id = create_session("ui-user", "analyst")
                 st.session_state.connected = True
+                st.session_state["_conn_validated"] = True
                 st.success("Connected")
             except Exception as e:
                 st.error(f"Connection failed: {e}")
                 st.session_state.connected = False
+                st.session_state["_conn_validated"] = False
         else:
             st.warning("Endpoint and API key required.")
 
@@ -121,11 +123,6 @@ with st.sidebar:
     show_table   = st.toggle("Show Results Table", value=True)
     show_plan    = st.toggle("Show Query Plan", value=True)
     auto_confirm = st.toggle("Auto-confirm (skip HitL)", value=False)
-    st.divider()
-    st.markdown(f'<div style="color:{GREY_MUTED};font-size:.7rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:.4rem">Identity</div>', unsafe_allow_html=True)
-    user_role = st.selectbox("Role", ["analyst", "data-steward", "admin", "viewer", "agent"])
-    st.session_state["user_role"] = user_role
-    user_dept = st.text_input("Department", value="", placeholder="e.g. Finance")
     st.divider()
 
     st.divider()
@@ -165,6 +162,21 @@ with st.sidebar:
         st.session_state.update({"messages": [], "pending_plan": None, "pending_question": "", "turn_count": 0})
         st.rerun()
     st.caption("NEXUS v1.0 · Stardog + OpenAI · GSK")
+
+# Identity defaults (removed from sidebar UI)
+user_role = st.session_state.get("user_role", "analyst")
+user_dept = ""
+st.session_state["user_role"] = user_role
+
+# ── Validate connection once per session (first load only) ───────────
+if st.session_state.connected and not st.session_state.get("_conn_validated"):
+    try:
+        from nexus.core.stardog_client import get_stardog
+        get_stardog().query("ASK { ?s ?p ?o } LIMIT 1", inject_prefixes=False)
+        st.session_state["_conn_validated"] = True
+    except Exception:
+        st.session_state.connected = False
+        st.session_state["_conn_validated"] = False
 
 # ── Header ────────────────────────────────────────────────────────────
 status_on  = st.session_state.connected
@@ -376,6 +388,10 @@ with tab_chat:
             except Exception as exc:
                 from nexus.core.sparql_feedback import record_failure
                 record_failure(question, sparql, str(exc))
+                _exc_str = str(exc).lower()
+                if any(w in _exc_str for w in ("401", "403", "unauthorized", "forbidden", "connection", "timeout", "ssl")):
+                    st.session_state.connected = False
+                    st.session_state["_conn_validated"] = False
                 msg = f"Query failed: {exc}"
                 status.markdown(msg)
                 st.session_state.messages.append({"role": "assistant", "content": msg})
@@ -552,7 +568,7 @@ with tab_guided_sa:
         from nexus.ui.guided_sa_tab import render_guided_sa_tab
         render_guided_sa_tab(st, user_role=user_role)
     except Exception as exc:
-        st.error(f"Guided SA Advisor failed to load: {exc}")
+        st.error(f"Solution Architect AI Agent failed to load: {exc}")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -560,7 +576,7 @@ with tab_guided_sa:
 # ═══════════════════════════════════════════════════════════════════════
 with tab_sa:
 
-    st.caption('Use Guided SA Advisor for capability-first architecture interviews. Use this tab for freeform ArchiMate generation.')
+    st.caption('Use Solution Architect AI Agent for capability-first architecture interviews. Use this tab for freeform EA artifact generation.')
 
     # ── ArchiMate definitions ──────────────────────────────────────
     LAYER_ORDER = ["Motivation", "Business", "Application", "Technology"]
