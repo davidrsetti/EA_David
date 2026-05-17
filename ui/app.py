@@ -107,18 +107,18 @@ with st.sidebar:
                 from nexus.agents.session import create_session
                 st.session_state.session_id = create_session("ui-user", "analyst")
                 st.session_state.connected = True
-                st.session_state["_conn_validated"] = True
+                st.session_state["_conn_last_check"] = time.monotonic()
                 st.success("Connected")
             except Exception as e:
                 st.error(f"Connection failed: {e}")
                 st.session_state.connected = False
-                st.session_state["_conn_validated"] = False
+                st.session_state["_conn_last_check"] = 0
         else:
             st.warning("Endpoint and API key required.")
 
     st.divider()
     st.markdown(f'<div style="color:{GREY_MUTED};font-size:.7rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:.4rem">Query Options</div>', unsafe_allow_html=True)
-    use_virtual  = st.toggle("Denodo Virtual Graph", value=False)
+    use_virtual  = False
     show_sparql  = st.toggle("Show SPARQL", value=True)
     show_table   = st.toggle("Show Results Table", value=True)
     show_plan    = st.toggle("Show Query Plan", value=True)
@@ -168,15 +168,34 @@ user_role = st.session_state.get("user_role", "analyst")
 user_dept = ""
 st.session_state["user_role"] = user_role
 
-# ── Validate connection once per session (first load only) ───────────
-if st.session_state.connected and not st.session_state.get("_conn_validated"):
-    try:
-        from nexus.core.stardog_client import get_stardog
-        get_stardog().query("ASK { ?s ?p ?o } LIMIT 1", inject_prefixes=False)
-        st.session_state["_conn_validated"] = True
-    except Exception:
-        st.session_state.connected = False
-        st.session_state["_conn_validated"] = False
+# ── Re-validate connection every 60 s with a 3-second timeout ────────
+_CONN_CHECK_INTERVAL = 60
+if st.session_state.connected:
+    _now = time.monotonic()
+    if _now - st.session_state.get("_conn_last_check", 0) > _CONN_CHECK_INTERVAL:
+        try:
+            import requests as _req
+            from nexus.config.settings import settings as _s
+            _cfg = _s.stardog
+            _r = _req.post(
+                _cfg.endpoint,
+                data=b"ASK { ?s ?p ?o }",
+                headers={
+                    "Authorization": f"{_cfg.auth_scheme} {_cfg.token}",
+                    "Content-Type": "application/sparql-query",
+                    "Accept": "application/sparql-results+json",
+                },
+                verify=_cfg.verify_tls,
+                timeout=3,
+            )
+            if _r.ok:
+                st.session_state["_conn_last_check"] = time.monotonic()
+            else:
+                st.session_state.connected = False
+                st.session_state["_conn_last_check"] = 0
+        except Exception:
+            st.session_state.connected = False
+            st.session_state["_conn_last_check"] = 0
 
 # ── Header ────────────────────────────────────────────────────────────
 status_on  = st.session_state.connected
