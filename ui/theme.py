@@ -45,12 +45,10 @@ ALERT_INFO_BG,    ALERT_INFO_FG,    ALERT_INFO_BORDER    = SURFACE_2, GREY_DARK,
 # ── GLOBAL CSS ───────────────────────────────────────────────────────────
 _CSS = f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Mono:wght@400;500&display=swap');
-
 /* Force light theme */
 html,body{{color-scheme:light!important;background:{SURFACE}!important;color:{NEAR_BLACK}!important;}}
-html,body,[class*="css"]{{font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:16px;}}
-code,.stCode,pre{{font-family:'DM Mono',monospace;font-size:.92em;}}
+html,body,[class*="css"]{{font-family:'Times New Roman',Times,Georgia,serif!important;font-size:16px;}}
+code,.stCode,pre{{font-family:'Courier New',Courier,monospace;font-size:.92em;}}
 
 /* App shell */
 .stApp,
@@ -103,7 +101,7 @@ section[data-testid="stSidebar"] [data-testid="stCaptionContainer"]{{color:{GREY
 .plan-card{{background:{WHITE};border:1px solid {GREY_LINE};border-top:3px solid {ORANGE};border-radius:8px;padding:1rem 1.2rem;margin:.6rem 0;}}
 .plan-label{{font-size:.72rem;font-weight:600;letter-spacing:.08em;color:{ORANGE}!important;text-transform:uppercase;margin-bottom:.3rem;}}
 .plan-value{{font-size:.85rem;color:{GREY_DARK}!important;}}
-.plan-tag{{display:inline-block;background:{SURFACE_2};border:1px solid {GREY_LINE};border-radius:4px;padding:.15rem .5rem;font-size:.75rem;color:{GREY_DARK}!important;margin:.15rem .15rem 0 0;font-family:'DM Mono',monospace;}}
+.plan-tag{{display:inline-block;background:{SURFACE_2};border:1px solid {GREY_LINE};border-radius:4px;padding:.15rem .5rem;font-size:.75rem;color:{GREY_DARK}!important;margin:.15rem .15rem 0 0;font-family:'Courier New',Courier,monospace;}}
 .plan-warn{{background:{ORANGE_TINT};border:1px solid {ORANGE_LIGHT};border-radius:6px;padding:.6rem .8rem;margin-top:.5rem;font-size:.8rem;color:{ORANGE_DARK}!important;}}
 
 /* Risk badges (strict palette) */
@@ -148,7 +146,7 @@ details[open] summary{{color:{ORANGE}!important;}}
 .stSpinner>div>div{{border-top-color:{ORANGE}!important;}}
 
 /* Buttons */
-.stButton>button{{background:{WHITE}!important;border:1px solid {GREY_LINE}!important;color:{GREY_DARK}!important;border-radius:6px!important;font-size:.92rem!important;font-family:'EB Garamond',Georgia,serif!important;letter-spacing:.01em!important;transition:all .15s!important;}}
+.stButton>button{{background:{WHITE}!important;border:1px solid {GREY_LINE}!important;color:{GREY_DARK}!important;border-radius:6px!important;font-size:.92rem!important;font-family:'Times New Roman',Times,Georgia,serif!important;letter-spacing:.01em!important;transition:all .15s!important;}}
 .stButton>button:hover{{border-color:{ORANGE}!important;color:{ORANGE}!important;background:{WHITE}!important;}}
 .stButton>button:focus,.stButton>button:active{{background:{ORANGE}!important;color:{WHITE}!important;border-color:{ORANGE}!important;box-shadow:none!important;}}
 .stButton>button[kind="primary"]{{background:{ORANGE}!important;color:{WHITE}!important;border-color:{ORANGE}!important;}}
@@ -171,7 +169,7 @@ details[open] summary{{color:{ORANGE}!important;}}
   padding:.55rem .9rem!important;
   font-size:.95rem!important;
   font-weight:500!important;
-  font-family:'EB Garamond',Georgia,serif!important;
+  font-family:'Times New Roman',Times,Georgia,serif!important;
   transition:color .15s, border-color .15s;
 }}
 [data-baseweb="tab"]:hover{{color:{NEAR_BLACK}!important;background:{SURFACE_2}!important;}}
@@ -184,7 +182,7 @@ details[open] summary{{color:{ORANGE}!important;}}
 
 /* Metrics */
 [data-testid="stMetric"]{{background:{WHITE};border:1px solid {GREY_LINE};border-radius:8px;padding:.8rem 1rem;}}
-[data-testid="stMetricLabel"]{{color:{GREY_TEXT}!important;font-size:.78rem!important;text-transform:uppercase;letter-spacing:.08em;font-family:'EB Garamond',Georgia,serif!important;}}
+[data-testid="stMetricLabel"]{{color:{GREY_TEXT}!important;font-size:.78rem!important;text-transform:uppercase;letter-spacing:.08em;font-family:'Times New Roman',Times,Georgia,serif!important;}}
 [data-testid="stMetricValue"]{{color:{NEAR_BLACK}!important;font-weight:600!important;font-size:1.6rem!important;}}
 [data-testid="stMetricDelta"] svg{{display:none;}}
 [data-testid="stMetricDelta"]{{color:{ORANGE}!important;}}

@@ -787,7 +787,7 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
 
         svg_parts = [
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
-            f'style="background:#F7F7F7;display:block;font-family:\'EB Garamond\',Georgia,serif;">'
+            f'style="background:#F7F7F7;display:block;font-family:Times New Roman,Times,Georgia,serif;">'
         ]
 
         # Layer bands
@@ -796,7 +796,7 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
             svg_parts.append(
                 f'<rect x="0" y="{b["y"]}" width="{W}" height="{b["h"]}" fill="{lc["band"]}" opacity="0.8"/>'
                 f'<rect x="0" y="{b["y"]}" width="3" height="{b["h"]}" fill="{lc["border"]}"/>'
-                f'<text x="10" y="{b["y"]+26}" font-family="DM Mono,monospace" font-size="9" '
+                f'<text x="10" y="{b["y"]+26}" font-family="Courier New, Courier, monospace" font-size="9" '
                 f'font-weight="600" fill="{lc["accent"]}" opacity="0.9" letter-spacing="0.1em">'
                 f'{lyr.upper()} LAYER</text>'
             )
@@ -847,7 +847,7 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
                 mx, my = (x1 + x2) / 2, (y1 + y2) / 2 - 6
                 svg_parts.append(
                     f'<text x="{mx:.0f}" y="{my:.0f}" text-anchor="middle" '
-                    f'font-family="DM Mono,monospace" font-size="8" fill="{rs["color"]}" opacity="0.85">'
+                    f'font-family="Courier New, Courier, monospace" font-size="8" fill="{rs["color"]}" opacity="0.85">'
                     f'{rel["label"]}</text>'
                 )
 
@@ -862,9 +862,9 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
                 f'rx="4" fill="#FFFFFF" stroke="{lc["border"]}" stroke-width="1"/>'
                 f'<rect x="{el["x"]}" y="{el["y"]}" width="{el["w"]}" height="2" '
                 f'rx="1" fill="{lc["accent"]}" opacity="0.5"/>'
-                f'<text x="{el["x"]+6}" y="{el["y"]+14}" font-family="DM Mono,monospace" '
+                f'<text x="{el["x"]+6}" y="{el["y"]+14}" font-family="Courier New, Courier, monospace" '
                 f'font-size="8" fill="{lc["accent"]}" opacity="0.7">{edef["label"]}</text>'
-                f'<text x="{cx}" y="{cy}" text-anchor="middle" font-family="\'EB Garamond\',Georgia,serif" '
+                f'<text x="{cx}" y="{cy}" text-anchor="middle" font-family="Times New Roman, Times, Georgia, serif" '
                 f'font-size="12" font-weight="600" fill="#1A1A1A">{el["label"]}</text>'
             )
 
@@ -956,7 +956,7 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
             legend_items = "".join(
                 f'<span style="display:inline-flex;align-items:center;gap:5px;margin-right:16px;">'
                 f'<span style="width:10px;height:10px;border-radius:2px;background:{lc["accent"]};opacity:.8;display:inline-block"></span>'
-                f'<span style="color:{lc["accent"]};font-size:10px;font-family:DM Mono,monospace">{lyr}</span>'
+                f'<span style="color:{lc["accent"]};font-size:10px;font-family:Courier New,Courier,monospace">{lyr}</span>'
                 f'</span>'
                 for lyr, lc in LAYER_COLORS.items()
             )
@@ -1011,7 +1011,7 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
                         f'<div class="sa-detail-card sa-layer-band-{lyr}">'
                         f'<div style="display:flex;justify-content:space-between;margin-bottom:.2rem">'
                         f'<span style="color:#1A1A1A;font-weight:600;font-size:.85rem">{el["label"]}</span>'
-                        f'<span style="color:{lc["accent"]};font-size:.72rem;font-family:DM Mono,monospace">{edef["label"]}</span>'
+                        f'<span style="color:{lc["accent"]};font-size:.72rem;font-family:Courier New,Courier,monospace">{edef["label"]}</span>'
                         f'</div>'
                         f'<div style="color:#666666;font-size:.8rem">{el.get("description","")}</div>'
                         f'</div>',
@@ -1026,7 +1026,7 @@ Rules: 6-14 elements across 2-4 layers. 4-12 relationships. Labels max 4 words. 
                 st.markdown(
                     f'<div style="display:flex;align-items:center;gap:8px;padding:.3rem 0;border-bottom:1px solid #EBEBEB;">'
                     f'<span style="color:#333333;font-size:.82rem;min-width:120px">{from_el.get("label","?")}</span>'
-                    f'<span style="color:{rs["color"]};font-family:DM Mono,monospace;font-size:.72rem;flex:1">──{rel.get("label","")or rel["type"].replace("Relationship","")}──▶</span>'
+                    f'<span style="color:{rs["color"]};font-family:Courier New,Courier,monospace;font-size:.72rem;flex:1">──{rel.get("label","")or rel["type"].replace("Relationship","")}──▶</span>'
                     f'<span style="color:#333333;font-size:.82rem;min-width:120px;text-align:right">{to_el.get("label","?")}</span>'
                     f'</div>',
                     unsafe_allow_html=True

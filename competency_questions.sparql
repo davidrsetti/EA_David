@@ -1,0 +1,539 @@
+# =============================================================================
+# NEXUS Enterprise Architecture — Competency Question SPARQL Library
+# Ontology: ea-ontology-consolidated-10.ttl  |  Stardog endpoint: ea-advisor DB
+#
+# PREFIX block is omitted here; at runtime the SPARQL_PREFIX_BLOCK from
+# config/ontology_prefixes.py is prepended automatically by nl_to_sparql.
+# Run manually by prepending the PREFIX block from that module.
+#
+# Variable convention
+#   FILTER values written in UPPER_CASE are parameters you must substitute.
+#   e.g.  FILTER(LCASE(?name) = "david setti")
+# =============================================================================
+
+
+# =============================================================================
+# SECTION 1 — HR DOMAIN
+# =============================================================================
+
+# CQ-HR-01  Who is a given user's manager?
+# Substitute USER_NAME with the target employee's name (case-insensitive).
+SELECT ?userName ?managerName
+WHERE {
+  ?user  a hr:User ;
+         ea:name ?userName .
+  FILTER(LCASE(?userName) = "david setti")
+  ?manager <urn:EA_AI_Intelligence:manages_user> ?user ;
+           ea:name ?managerName .
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-HR-02  List all users and their departments.
+SELECT ?userName ?deptName
+WHERE {
+  ?user a hr:User ;
+        ea:name ?userName ;
+        hr:memberOfDepartment ?dept .
+  ?dept ea:name ?deptName .
+}
+ORDER BY ?deptName ?userName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-HR-03  For each manager, list the users they manage.
+SELECT ?managerName ?userName
+WHERE {
+  ?manager a hr:Manager ;
+           ea:name ?managerName .
+  ?manager <urn:EA_AI_Intelligence:manages_user> ?user .
+  ?user    ea:name ?userName .
+}
+ORDER BY ?managerName ?userName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-HR-04  For each department, list its child departments.
+# hr:Department is a subclass of hr:Organization, so hr:hasDepartment
+# can link one Department to its child Departments.
+SELECT ?parentName ?childName
+WHERE {
+  ?parent a hr:Department ;
+          ea:name ?parentName ;
+          hr:hasDepartment ?child .
+  ?child  a hr:Department ;
+          ea:name ?childName .
+}
+ORDER BY ?parentName ?childName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-HR-05  Find all users who do not have any role.
+# Roles are assigned to id:DigitalUser (Entra identity) linked via id:linkedUser.
+SELECT ?userName
+WHERE {
+  ?user a hr:User ;
+        ea:name ?userName .
+  FILTER NOT EXISTS {
+    ?identity id:linkedUser   ?user ;
+              id:assignedRole  ?role .
+  }
+}
+ORDER BY ?userName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-HR-06  List all departments that do not have a parent department
+#           (top-level org units).
+SELECT ?deptName
+WHERE {
+  ?dept a hr:Department ;
+        ea:name ?deptName .
+  FILTER NOT EXISTS {
+    ?parent a hr:Department ;
+            hr:hasDepartment ?dept .
+  }
+}
+ORDER BY ?deptName
+
+
+# =============================================================================
+# SECTION 2 — EA / APPLICATIONS / TECHNOLOGY
+# =============================================================================
+
+# CQ-EA-01  For each L3 business capability, list the applications that enable it.
+SELECT ?capName ?appName
+WHERE {
+  ?cap a ea:BusinessCapabilityL3 ;
+       ea:name ?capName .
+  ?app a app:Application ;
+       ea:name ?appName ;
+       ea:enablesBusinessCapability ?cap .
+}
+ORDER BY ?capName ?appName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-EA-02  For a given L1 business capability, list all its L3 descendants
+#           and the applications that enable those L3 capabilities.
+# Substitute L1_NAME with the exact L1 capability name.
+SELECT ?l1Name ?l2Name ?l3Name ?appName
+WHERE {
+  ?l1 a ea:BusinessCapabilityL1 ;
+      ea:name ?l1Name .
+  FILTER(LCASE(?l1Name) = "L1_NAME")
+  ?l1 ea:hasBusinessCapabilityL2 ?l2 .
+  ?l2 ea:name ?l2Name ;
+      ea:hasBusinessCapabilityL3 ?l3 .
+  ?l3 ea:name ?l3Name .
+  OPTIONAL {
+    ?app a app:Application ;
+         ea:name ?appName ;
+         ea:enablesBusinessCapability ?l3 .
+  }
+}
+ORDER BY ?l2Name ?l3Name ?appName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-EA-03  For each L3 technology capability, list the technologies that enable it.
+SELECT ?capName ?techName
+WHERE {
+  ?cap  a ea:TechnologyCapabilityL3 ;
+        ea:name ?capName .
+  ?tech a ea:Technology ;
+        ea:name ?techName ;
+        ea:enablesTechnologyCapability ?cap .
+}
+ORDER BY ?capName ?techName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-EA-04  List all applications that do not enable any L3 business capability.
+SELECT ?appName
+WHERE {
+  ?app a app:Application ;
+       ea:name ?appName .
+  FILTER NOT EXISTS {
+    ?app ea:enablesBusinessCapability ?cap .
+  }
+}
+ORDER BY ?appName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-EA-05  List all L3 business capabilities that have no enabling application.
+SELECT ?capName
+WHERE {
+  ?cap a ea:BusinessCapabilityL3 ;
+       ea:name ?capName .
+  FILTER NOT EXISTS {
+    ?app a app:Application ;
+         ea:enablesBusinessCapability ?cap .
+  }
+}
+ORDER BY ?capName
+
+
+# =============================================================================
+# SECTION 3 — AI AGENTS / ENTRA / SECURITY
+# =============================================================================
+
+# CQ-AI-01  For each AI agent, list the applications it uses.
+SELECT ?agentName ?appName
+WHERE {
+  ?agent a ai:Agent ;
+         ea:name ?agentName ;
+         ai:accessesApplication ?app .
+  ?app   ea:name ?appName .
+}
+ORDER BY ?agentName ?appName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-AI-02  For each AI agent, list the Entra identity (Service Principal)
+#           it uses — including objectId.
+# Note: clientId is not a distinct ontology property; it is stored in
+# id:objectId on the ServicePrincipal or derivable from ea:name.
+SELECT ?agentName ?appName ?spName ?objectId
+WHERE {
+  ?agent a ai:Agent ;
+         ea:name ?agentName ;
+         ai:accessesApplication ?app .
+  ?app   ea:name ?appName ;
+         app:accessedByIdentity ?sp .
+  ?sp    a id:ServicePrincipal ;
+         ea:name ?spName .
+  OPTIONAL { ?sp id:objectId ?objectId . }
+}
+ORDER BY ?agentName ?spName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-AI-03  For a given department, list the AI agents it supports.
+# Agents are linked to users (ai:ownedBy); users belong to departments.
+# Substitute DEPT_NAME with the target department name.
+SELECT ?deptName ?agentName ?agentUri
+WHERE {
+  ?dept  a hr:Department ;
+         ea:name ?deptName .
+  FILTER(LCASE(?deptName) = "DEPT_NAME")
+  ?user  a hr:User ;
+         hr:memberOfDepartment ?dept .
+  ?agent a ai:Agent ;
+         ea:name ?agentName ;
+         ai:ownedBy ?user .
+  BIND(?agent AS ?agentUri)
+}
+ORDER BY ?agentName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-AI-04  List all AI agents that do not have an Entra identity (Service Principal).
+# An agent has an Entra identity when the application it accesses has an
+# associated ServicePrincipal via app:accessedByIdentity.
+SELECT ?agentName
+WHERE {
+  ?agent a ai:Agent ;
+         ea:name ?agentName .
+  FILTER NOT EXISTS {
+    ?agent ai:accessesApplication ?app .
+    ?app   app:accessedByIdentity ?sp .
+    ?sp    a id:ServicePrincipal .
+  }
+}
+ORDER BY ?agentName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-AI-05  For each AI agent, list the security policies that constrain
+#           its Entra identity (via the applications it accesses).
+SELECT ?agentName ?appName ?policyName
+WHERE {
+  ?agent  a ai:Agent ;
+          ea:name ?agentName ;
+          ai:accessesApplication ?app .
+  ?app    ea:name ?appName .
+  ?policy a sec:SecurityPolicy ;
+          ea:name ?policyName ;
+          sec:governsApplication ?app .
+}
+ORDER BY ?agentName ?policyName
+
+
+# =============================================================================
+# SECTION 4 — CROSS-DOMAIN
+# =============================================================================
+
+# CQ-XD-01  For each user, list the applications they own (technical or via
+#           their department) and the L3 business capabilities those apps enable.
+SELECT ?userName ?appName ?capName
+WHERE {
+  ?user a hr:User ;
+        ea:name ?userName .
+  {
+    ?app app:techOwner ?user .
+  }
+  UNION
+  {
+    ?user hr:memberOfDepartment ?dept .
+    ?app  app:ownedByDepartment ?dept .
+  }
+  ?app a app:Application ;
+       ea:name ?appName .
+  OPTIONAL {
+    ?app ea:enablesBusinessCapability ?cap .
+    ?cap ea:name ?capName .
+  }
+}
+ORDER BY ?userName ?appName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-XD-02  For each department, list the AI agents it supports and the
+#           datasets (Unity Catalog views / documents) those agents can access.
+SELECT ?deptName ?agentName ?datasetName ?accessType
+WHERE {
+  ?dept  a hr:Department ;
+         ea:name ?deptName .
+  ?user  a hr:User ;
+         hr:memberOfDepartment ?dept .
+  ?agent a ai:Agent ;
+         ea:name ?agentName ;
+         ai:ownedBy ?user .
+  OPTIONAL {
+    {
+      ?agent ai:agentReads ?ds .
+      BIND("read" AS ?accessType)
+    }
+    UNION
+    {
+      ?agent ai:agentWrites ?ds .
+      BIND("write" AS ?accessType)
+    }
+    ?ds ea:name ?datasetName .
+  }
+}
+ORDER BY ?deptName ?agentName ?datasetName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-XD-03  For each L3 business capability, list the datasets (Unity Catalog
+#           views / documents) reachable via enabling applications and the
+#           access rights of AI agents using those applications.
+SELECT DISTINCT ?capName ?appName ?agentName ?datasetName ?accessType
+WHERE {
+  ?cap   a ea:BusinessCapabilityL3 ;
+         ea:name ?capName .
+  ?app   a app:Application ;
+         ea:name ?appName ;
+         ea:enablesBusinessCapability ?cap .
+  ?agent a ai:Agent ;
+         ea:name ?agentName ;
+         ai:accessesApplication ?app .
+  {
+    ?agent ai:agentReads ?ds .
+    BIND("read" AS ?accessType)
+  }
+  UNION
+  {
+    ?agent ai:agentWrites ?ds .
+    BIND("write" AS ?accessType)
+  }
+  ?ds ea:name ?datasetName .
+}
+ORDER BY ?capName ?appName ?agentName ?datasetName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-XD-04  For each Entra identity (Service Principal), list the security
+#           policies that constrain it and the AI agents and applications
+#           that use that identity.
+SELECT ?spName ?objectId ?policyName ?appName ?agentName
+WHERE {
+  ?sp a id:ServicePrincipal ;
+      ea:name ?spName .
+  OPTIONAL { ?sp id:objectId ?objectId . }
+  ?app a app:Application ;
+       ea:name ?appName ;
+       app:accessedByIdentity ?sp .
+  OPTIONAL {
+    ?policy a sec:SecurityPolicy ;
+            ea:name ?policyName ;
+            sec:governsApplication ?app .
+  }
+  OPTIONAL {
+    ?agent a ai:Agent ;
+           ea:name ?agentName ;
+           ai:accessesApplication ?app .
+  }
+}
+ORDER BY ?spName ?appName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-XD-05  For a given dataset (Unity Catalog view or document), list the
+#           users who own it and the users and AI agents that have access.
+# Substitute DATASET_NAME with the exact dataset name.
+SELECT ?datasetName ?ownerName ?stewardName ?accessUserName ?agentName ?accessType
+WHERE {
+  ?ds a data:Dataset ;
+      ea:name ?datasetName .
+  FILTER(LCASE(?datasetName) = "DATASET_NAME")
+  OPTIONAL {
+    ?ds data:dataOwner ?owner .
+    ?owner ea:name ?ownerName .
+  }
+  OPTIONAL {
+    ?ds data:steward ?steward .
+    ?steward ea:name ?stewardName .
+  }
+  OPTIONAL {
+    ?user  a hr:User ;
+           ea:name ?accessUserName ;
+           sec:hasAccess ?app .
+    ?app   app:accesses ?ds .
+  }
+  OPTIONAL {
+    ?agent a ai:Agent ;
+           ea:name ?agentName .
+    { ?agent ai:agentReads  ?ds . BIND("read"  AS ?accessType) }
+    UNION
+    { ?agent ai:agentWrites ?ds . BIND("write" AS ?accessType) }
+  }
+}
+
+
+# =============================================================================
+# SECTION 5 — KEY COMPETENCY QUESTIONS
+# =============================================================================
+
+# CQ-KEY-01  Which AI agents can access which datasets (Unity Catalog views
+#            and documents)?
+SELECT ?agentName ?datasetName ?accessType
+WHERE {
+  ?agent a ai:Agent ;
+         ea:name ?agentName .
+  {
+    ?agent ai:agentReads ?ds .
+    BIND("read" AS ?accessType)
+  }
+  UNION
+  {
+    ?agent ai:agentWrites ?ds .
+    BIND("write" AS ?accessType)
+  }
+  ?ds ea:name ?datasetName .
+}
+ORDER BY ?agentName ?accessType ?datasetName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-KEY-02  Which security policies apply to each AI agent, and what data
+#            do those policies allow or block for that agent?
+SELECT ?agentName ?policyName ?appName ?datasetName
+WHERE {
+  ?agent  a ai:Agent ;
+          ea:name ?agentName ;
+          ai:accessesApplication ?app .
+  ?app    ea:name ?appName .
+  ?policy a sec:SecurityPolicy ;
+          ea:name ?policyName ;
+          sec:governsApplication ?app .
+  OPTIONAL {
+    ?app app:accesses ?ds .
+    ?ds  ea:name ?datasetName .
+  }
+}
+ORDER BY ?agentName ?policyName ?appName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-KEY-03  For each AI agent, which HR users own or are responsible for
+#            the applications and data the agent uses?
+SELECT ?agentName ?appName ?techOwnerName ?dataOwnerName ?datasetName
+WHERE {
+  ?agent a ai:Agent ;
+         ea:name ?agentName ;
+         ai:accessesApplication ?app .
+  ?app   ea:name ?appName .
+  OPTIONAL {
+    ?app app:techOwner ?techOwner .
+    ?techOwner ea:name ?techOwnerName .
+  }
+  OPTIONAL {
+    ?app  app:accesses ?ds .
+    ?ds   data:dataOwner ?dataOwner ;
+          ea:name ?datasetName .
+    ?dataOwner ea:name ?dataOwnerName .
+  }
+}
+ORDER BY ?agentName ?appName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-KEY-04  For a given L3 business capability, which applications can answer
+#            questions about it and which datasets will those applications use?
+# Substitute CAP_NAME with the target capability name.
+SELECT ?capName ?appName ?agentName ?datasetName ?accessType
+WHERE {
+  ?cap a ea:BusinessCapabilityL3 ;
+       ea:name ?capName .
+  FILTER(LCASE(?capName) = "CAP_NAME")
+  ?app a app:Application ;
+       ea:name ?appName ;
+       ea:enablesBusinessCapability ?cap .
+  OPTIONAL {
+    ?agent a ai:Agent ;
+           ea:name ?agentName ;
+           ai:accessesApplication ?app .
+    OPTIONAL {
+      { ?agent ai:agentReads  ?ds . BIND("read"  AS ?accessType) }
+      UNION
+      { ?agent ai:agentWrites ?ds . BIND("write" AS ?accessType) }
+      ?ds ea:name ?datasetName .
+    }
+  }
+}
+ORDER BY ?capName ?appName ?agentName ?datasetName
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CQ-KEY-05  If a security policy or an Entra identity changes, which AI
+#            agents will have their data access or answers impacted?
+#
+# Part A — impact of a policy change
+SELECT DISTINCT ?policyName ?agentName ?appName ?datasetName
+WHERE {
+  ?policy a sec:SecurityPolicy ;
+          ea:name ?policyName ;
+          sec:governsApplication ?app .
+  ?agent  a ai:Agent ;
+          ea:name ?agentName ;
+          ai:accessesApplication ?app .
+  ?app    ea:name ?appName .
+  OPTIONAL {
+    { ?agent ai:agentReads  ?ds . } UNION { ?agent ai:agentWrites ?ds . }
+    ?ds ea:name ?datasetName .
+  }
+}
+ORDER BY ?policyName ?agentName
+
+# Part B — impact of an Entra identity (Service Principal) change
+SELECT DISTINCT ?spName ?objectId ?agentName ?appName ?datasetName
+WHERE {
+  ?sp  a id:ServicePrincipal ;
+       ea:name ?spName .
+  OPTIONAL { ?sp id:objectId ?objectId . }
+  ?app a app:Application ;
+       ea:name ?appName ;
+       app:accessedByIdentity ?sp .
+  ?agent a ai:Agent ;
+         ea:name ?agentName ;
+         ai:accessesApplication ?app .
+  OPTIONAL {
+    { ?agent ai:agentReads  ?ds . } UNION { ?agent ai:agentWrites ?ds . }
+    ?ds ea:name ?datasetName .
+  }
+}
+ORDER BY ?spName ?agentName
