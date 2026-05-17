@@ -1255,7 +1255,7 @@ with tab_migration:
 # ═══════════════════════════════════════════════════════════════════════
 with tab_bsl:
     from nexus.ui.bsl_tab import render as _render_bsl
-    _render_bsl(connected)
+    _render_bsl(st.session_state.get("connected", False))
 
 # ═══════════════════════════════════════════════════════════════════════
 # TAB 14 — GAP ANALYSIS & ROADMAP

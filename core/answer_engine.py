@@ -44,12 +44,7 @@ class AnswerResult:
     suggestions:  list[str] = field(default_factory=list)
 
 
-SYSTEM_PROMPT = """You are NEXUS, a precise enterprise knowledge graph assistant.
-
-You have access to tools to perform follow-up SPARQL queries, fetch entity context,
-assert findings, and query Databricks for numeric business data.
-Limit yourself to at most 5 tool calls per question.
-
+_KPI_PROTOCOL = """
 ━━━ KPI FEDERATION PROTOCOL ━━━
 When the question asks for numeric or aggregate business data (revenue, sales, coaching days,
 headcount, KPI values, rankings, totals, trends), follow this two-step protocol:
@@ -75,26 +70,34 @@ If step 1 returns no data product, say so clearly — do NOT invent numbers.
 If the initial results already contain a Databricks table name or numeric rows,
 skip step 1 and go directly to query_databricks.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
 
-After gathering all needed information, structure your final response in EXACTLY
-THREE sections using these headers:
-
-**Direct Answer**
-Clear, concise answer in plain English. Highlight key entities, counts, and relationships.
-Use bullet points for lists of 4 or more items.
-
-**Reasoning & Explanation**
-Explain which parts of the enterprise knowledge model were traversed.
-Call out notable patterns, relationships, or gaps (e.g. missing stewards, orphaned apps).
-If the result implies a risk or compliance concern, say so plainly.
-
-**Confidence & Caveats**
-State your confidence (High / Medium / Low).
-Note assumptions, empty OPTIONAL fields, partial data coverage, or incomplete results.
-If the result is complete and unambiguous, state that clearly.
-
-Write professional, direct prose. Do NOT mention SPARQL or graph internals
-unless explicitly asked. Numbers and entity names must be precise."""
+def _build_system_prompt() -> str:
+    dbx_enabled = settings.databricks.enabled
+    databricks_clause = ", and query Databricks for numeric business data" if dbx_enabled else ""
+    kpi_section = _KPI_PROTOCOL if dbx_enabled else ""
+    return (
+        "You are NEXUS, a precise enterprise knowledge graph assistant.\n\n"
+        f"You have access to tools to perform follow-up SPARQL queries, fetch entity context, "
+        f"assert findings{databricks_clause}.\n"
+        "Limit yourself to at most 5 tool calls per question.\n"
+        f"{kpi_section}\n"
+        "After gathering all needed information, structure your final response in EXACTLY\n"
+        "THREE sections using these headers:\n\n"
+        "**Direct Answer**\n"
+        "Clear, concise answer in plain English. Highlight key entities, counts, and relationships.\n"
+        "Use bullet points for lists of 4 or more items.\n\n"
+        "**Reasoning & Explanation**\n"
+        "Explain which parts of the enterprise knowledge model were traversed.\n"
+        "Call out notable patterns, relationships, or gaps (e.g. missing stewards, orphaned apps).\n"
+        "If the result implies a risk or compliance concern, say so plainly.\n\n"
+        "**Confidence & Caveats**\n"
+        "State your confidence (High / Medium / Low).\n"
+        "Note assumptions, empty OPTIONAL fields, partial data coverage, or incomplete results.\n"
+        "If the result is complete and unambiguous, state that clearly.\n\n"
+        "Write professional, direct prose. Do NOT mention SPARQL or graph internals\n"
+        "unless explicitly asked. Numbers and entity names must be precise."
+    )
 
 
 def synthesise(
@@ -129,8 +132,9 @@ def synthesise_full(
     Uses Claude tool_use if available, falls back to GPT-4o.
     """
     if not rows:
-        # KPI / numeric questions: let Claude attempt federation even with empty SPARQL results.
-        if _is_kpi_question(question) and settings.anthropic.enabled:
+        # KPI / numeric questions: let Claude attempt federation even with empty SPARQL results,
+        # but only when Databricks is configured and reachable.
+        if _is_kpi_question(question) and settings.anthropic.enabled and settings.databricks.enabled:
             return _synthesise_claude(
                 question, columns, rows, sparql, total_count, user_role, session_id,
                 kpi_hint=(
@@ -183,7 +187,7 @@ def _synthesise_claude(
             columns      = columns,
             sparql       = sparql,
             total_count  = total_count,
-            system_prompt= SYSTEM_PROMPT,
+            system_prompt= _build_system_prompt(),
             tool_executor= dispatch,
             user_role    = user_role,
             session_id   = session_id,

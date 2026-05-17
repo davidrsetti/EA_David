@@ -184,11 +184,15 @@ def tool_call_loop(
     while itr < max_iterations:
         itr += 1
         try:
+            active_tools = [
+                t for t in NEXUS_TOOLS
+                if t["name"] != "query_databricks" or settings.databricks.enabled
+            ]
             response = client.messages.create(
                 model     = settings.anthropic.answer_model,
                 max_tokens= settings.anthropic.max_tokens,
                 system    = _make_system_blocks(system_prompt),
-                tools     = NEXUS_TOOLS,
+                tools     = active_tools,
                 messages  = messages,
             )
         except Exception as exc:

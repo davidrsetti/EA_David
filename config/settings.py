@@ -137,6 +137,13 @@ class DatabricksSettings:
     token:        str = field(default_factory=lambda: os.getenv("DATABRICKS_TOKEN",        ""))
     sample_table: str = field(default_factory=lambda: os.getenv("DATABRICKS_SAMPLE_TABLE", ""))
 
+    @property
+    def enabled(self) -> bool:
+        explicit = os.getenv("DATABRICKS_ENABLED", "").lower()
+        if explicit in ("false", "0", "no"):
+            return False
+        return bool(self.token)
+
 
 @dataclass(frozen=True)
 class RedisSettings:
